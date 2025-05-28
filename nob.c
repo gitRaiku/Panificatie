@@ -11,6 +11,11 @@
 #define OBJF ".obj/"
 #define SRCF "src/"
 
+#define TARGET "panix"
+
+time_t __attribute((pure)) max(time_t o1, time_t o2) { return o1 > o2 ? o1 : o2; }
+#define IMAX(a, b) { (a) = max(a, b); }
+
 const char *CCFLAGS[] = { 
   "-Wall", 
   "-Og", 
@@ -36,55 +41,76 @@ struct strv *get_files(char *fname) {
   return sv;
 }
 
-void comp_object(Nob_Cmd *__restrict cmd, char *__restrict fname) {
-  cmd->count = 0;
-  nob_cc(cmd);
+time_t gmtime(char *__restrict fname) {
+  struct stat s;
+  if (stat(fname, &s) < 0) { return 0; }
+  return s.st_mtim.tv_sec * 1000 + s.st_mtim.tv_nsec / 1000000;
+}
 
-  nob_cmd_append(cmd);
-  svecforeach(CCFLAGS, const char*, cf) { nob_cmd_append(cmd, *cf); }
-
+time_t comp_object(Nob_Cmd *__restrict cmd, char *__restrict fname) {
   uint32_t sl = strlen(fname);
   char *oname = alloca(sl + strlen(OBJF)); 
   sprintf(oname, OBJF"%s", fname);
   oname[strlen(oname) - 1] = 'o';
   char *cname = alloca(sl + strlen(SRCF));
   sprintf(cname, SRCF"%s", fname);
+  time_t ct = gmtime(cname);
 
-  nob_cmd_append(cmd, "-c", "-o", oname, cname);
+  if (ct > gmtime(oname)) {
+    cmd->count = 0;
+    nob_cc(cmd);
 
-  if (!nob_cmd_run_sync(*cmd)) { fprintf(stderr, "Could not build %s!\n", fname); exit(1); }
+    nob_cmd_append(cmd);
+    svecforeach(CCFLAGS, const char*, cf) { nob_cmd_append(cmd, *cf); }
+
+    nob_cmd_append(cmd, "-c", "-o", oname, cname);
+
+    if (!nob_cmd_run_sync(*cmd)) { fprintf(stderr, "Could not build %s!\n", fname); exit(1); }
+  }
+  return ct;
 }
 
 int main(int argc, char **argv) {
     NOB_GO_REBUILD_URSELF(argc, argv);
 
-    if (!nob_mkdir_if_not_exists(OBJF)) return 1;
-
     Nob_Cmd cmd = {0};
+
+    if (argc > 1) {
+      if (!strcmp(argv[1], "run")) {
+        nob_cmd_append(&cmd, "./"TARGET);
+        if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
+        return 0;
+      }
+    }
+
+    nob_minimal_log_level = NOB_NO_LOGS;
+    EZERO(nob_mkdir_if_not_exists(OBJF), "Could not create %s", OBJF)
+    nob_minimal_log_level = NOB_INFO;
 
     struct strv *__restrict files = get_files(SRCF);
 
+    time_t maxt = 0;
     vecforeach(files, char*, cv) { 
-      comp_object(&cmd, *cv);
+      IMAX(maxt, comp_object(&cmd, *cv));
+    }
+
+    if (maxt >= gmtime(TARGET)) {
+      cmd.count = 0;
+      nob_cc(&cmd);
+      svecforeach(CCFLAGS, const char*, cf) { nob_cmd_append(&cmd, *cf); }
+      nob_cmd_append(&cmd, "-o", TARGET);
+      vecforeach(files, char*, cv) { 
+        uint32_t sl = strlen(*cv);
+        char *oname = alloca(sl + strlen(OBJF)); 
+        sprintf(oname, OBJF"%s", *cv);
+        oname[strlen(oname) - 1] = 'o';
+        nob_cmd_append(&cmd, oname);
+      }
+      if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not link %s!\n", TARGET); exit(1); }
     }
 
     vecforeach(files, char*, cv) { free(*cv); }
     vecfree(files);
-
-    // Let's append the command line arguments
-    //nob_cmd_append(&cmd, "cc", "-Wall", "-Wextra", "-o", BUILD_FOLDER"hello", SRC_FOLDER"hello.c");
-
-    // Let's execute the command synchronously, that is it will be blocked until it's finished.
-    //if (!nob_cmd_run_sync(cmd)) return 1;
-    //cmd.count = 0;
-
-    //nob_cc(&cmd);
-    //add_flags(&cmd);
-    //nob_cc_output(&cmd, BUILD_FOLDER "foo");
-    //nob_cc_inputs(&cmd, SRC_FOLDER "foo.c");
-
-    // nob_cmd_run_sync_and_reset() resets the cmd for you automatically
-    //if (!nob_cmd_run_sync_and_reset(&cmd)) return 1;
 
     return 0;
 }

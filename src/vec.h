@@ -10,7 +10,9 @@
     uint32_t l, s;          \
   };
 
+#define EZERO(cmd, res, args...) if ((cmd) == 0) { fprintf(stderr, res ": %m!\n", ##args); exit(1); }
 #define ENULL(cmd, res, args...) if ((cmd) == NULL) { fprintf(stderr, res ": %m!\n", ##args); exit(1); }
+#define ENEG(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %m!\n", ##args); exit(1); }
 #define veci(type, ret) { struct type *_cv = malloc(sizeof(struct type)); _cv->s = 4; _cv->l = 0; _cv->v = malloc(sizeof(*_cv->v) * _cv->s); ENULL(_cv->v, "MEMORY WHAT?"); (ret) = _cv; }
 #define vecp(_v, _val) { if ((_v)->l == (_v)->s) { (_v)->s *= 2; (_v)->v = realloc((_v)->v, sizeof(*(_v)->v) * (_v)->s); ENULL((_v)->v, "MEMORY WHAT?"); } (_v)->v[(_v)->l] = (_val); ++(_v)->l; } 
 #define vect(_v) { (_v)->s = (_v)->l; (_v)->v = realloc((_v)->v, sizeof(*(_v)->v) * (_v)->s); } 
