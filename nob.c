@@ -2,7 +2,7 @@
 #define NOB_STRIP_PREFIX
 #define NOB_EXPERIMENTAL_DELETE_OLD
 #include "nob.h"
-#include "src/vec.h"
+#include "src/util.h"
 
 #include <dirent.h>
 #include <stdint.h>
@@ -11,18 +11,15 @@
 #define OBJF ".obj/"
 #define SRCF "src/"
 
-#define TARGET "panix"
+#define TARGET "pan"
 
 time_t __attribute((pure)) max(time_t o1, time_t o2) { return o1 > o2 ? o1 : o2; }
 #define IMAX(a, b) { (a) = max(a, b); }
 
 const char *CCFLAGS[] = { 
-  "-Wall", 
-  "-Og", 
-  "-ggdb3" 
+  "-Wall", "-Og", "-ggdb3",
+  "-lalpm", "-D_FILE_OFFSET_BITS=64", // ??????????? Be able to write files bigger than 2Gb?? Idk
 };
-
-DEF_VEC(char*, strv);
 
 void add_flags(Nob_Cmd *__restrict cmd) { int32_t i; for(i = 0; i < ARRAY_LEN(CCFLAGS); ++i) { nob_cmd_append(cmd, CCFLAGS[i]); } }
 
@@ -70,47 +67,63 @@ time_t comp_object(Nob_Cmd *__restrict cmd, char *__restrict fname) {
   return ct;
 }
 
-int main(int argc, char **argv) {
-    NOB_GO_REBUILD_URSELF(argc, argv);
+void rebuild() {
+  Nob_Cmd cmd = {0};
 
-    Nob_Cmd cmd = {0};
+  nob_minimal_log_level = NOB_NO_LOGS;
+  EZERO(nob_mkdir_if_not_exists(OBJF), "Could not create %s", OBJF)
+  nob_minimal_log_level = NOB_INFO;
 
-    if (argc > 1) {
-      if (!strcmp(argv[1], "run")) {
-        nob_cmd_append(&cmd, "./"TARGET);
-        if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
-        return 0;
-      }
-    }
+  struct strv *__restrict files = get_files(SRCF);
 
-    nob_minimal_log_level = NOB_NO_LOGS;
-    EZERO(nob_mkdir_if_not_exists(OBJF), "Could not create %s", OBJF)
-    nob_minimal_log_level = NOB_INFO;
+  time_t maxt = 0;
+  vecforeach(files, char*, cv) { 
+    IMAX(maxt, comp_object(&cmd, *cv));
+  }
 
-    struct strv *__restrict files = get_files(SRCF);
-
-    time_t maxt = 0;
+  if (maxt >= gmtime(TARGET)) {
+    cmd.count = 0;
+    nob_cc(&cmd);
+    svecforeach(CCFLAGS, const char*, cf) { nob_cmd_append(&cmd, *cf); }
+    nob_cmd_append(&cmd, "-o", TARGET);
     vecforeach(files, char*, cv) { 
-      IMAX(maxt, comp_object(&cmd, *cv));
+      uint32_t sl = strlen(*cv);
+      char *oname = alloca(sl + strlen(OBJF)); 
+      sprintf(oname, OBJF"%s", *cv);
+      oname[strlen(oname) - 1] = 'o';
+      nob_cmd_append(&cmd, oname);
     }
+    if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not link %s!\n", TARGET); exit(1); }
+  }
 
-    if (maxt >= gmtime(TARGET)) {
-      cmd.count = 0;
-      nob_cc(&cmd);
-      svecforeach(CCFLAGS, const char*, cf) { nob_cmd_append(&cmd, *cf); }
-      nob_cmd_append(&cmd, "-o", TARGET);
-      vecforeach(files, char*, cv) { 
-        uint32_t sl = strlen(*cv);
-        char *oname = alloca(sl + strlen(OBJF)); 
-        sprintf(oname, OBJF"%s", *cv);
-        oname[strlen(oname) - 1] = 'o';
-        nob_cmd_append(&cmd, oname);
-      }
-      if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not link %s!\n", TARGET); exit(1); }
+  vecforeach(files, char*, cv) { free(*cv); }
+  vecfree(files);
+}
+
+void run() {
+  Nob_Cmd cmd = {0};
+  nob_cmd_append(&cmd, "./"TARGET);
+  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
+}
+
+void debug() {
+  Nob_Cmd cmd = {0};
+  nob_cmd_append(&cmd, "gdb", "-q", "./"TARGET);
+  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
+}
+
+int main(int argc, char **argv) {
+  NOB_GO_REBUILD_URSELF(argc, argv);
+
+  rebuild();
+
+  if (argc > 1) {
+    if (!strcmp(argv[1], "run")) {
+      run();
+    } else if (!strcmp(argv[1], "debug")) {
+      debug();
     }
+  }
 
-    vecforeach(files, char*, cv) { free(*cv); }
-    vecfree(files);
-
-    return 0;
+  return 0;
 }
