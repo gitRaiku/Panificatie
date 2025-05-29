@@ -1,27 +1,12 @@
-#include "conf.h"
+#include "pacman_conf.h"
 
-char *gtrim(char *l) {
-  char *r = l;
-  while (isspace(*r) && *r) { ++r; }
-  return r;
-}
+char *gtrim(char *l) {char *r = l;while (isspace(*r) && *r) { ++r; }return r;}
+char *gspace(char *l) {char *r = l;while (!isspace(*r) && *r) { ++r; }return r;}
+char *gchar(char *l, char c) {char *r = l;while ((*r != c) && *r) { ++r; }return r;}
 
-char *gspace(char *l) {
-  char *r = l;
-  while (!isspace(*r) && *r) { ++r; }
-  return r;
-}
-
-char *gchar(char *l, char c) {
-  char *r = l;
-  while ((*r != c) && *r) { ++r; }
-  return r;
-}
-
-void read_file(struct panix_conf *pc, char *fname) {
+void read_file(struct pacman_conf *pc, char *fname) {
   FILE *f = fopen(fname, "r");
   ENULL(f, "Could not open file %s\n", fname);
-
   char *cl = NULL;
   size_t cn = 0;
   while (getline(&cl, &cn, f) >= 0) {
@@ -42,14 +27,14 @@ void read_file(struct panix_conf *pc, char *fname) {
   ENEZ(fclose(f), "Could not close %s!", fname);
 }
 
-struct panix_conf *panix_read_conf(char *fname) {
-  struct panix_conf *conf = malloc(sizeof(struct panix_conf));
+struct pacman_conf *pacman_read_conf(char *fname) {
+  struct pacman_conf *conf = malloc(sizeof(struct pacman_conf));
   veci(strv, conf->repos);
   read_file(conf, fname);
   return conf;
 }
 
-void panix_free_conf(struct panix_conf *conf) { 
+void pacman_free_conf(struct pacman_conf *conf) { 
   vecforeach(conf->repos, char*, s) { free(*s); }
   vecfree(conf->repos);
   free(conf);

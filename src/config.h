@@ -3,7 +3,8 @@
 
 #define ALPM_ROOT "/"
 #define ALPM_DBPATH "/var/lib/pacman"
-#define CONFIG_PATH "/etc/pacman.conf"
+#define PACMAN_CONF "/etc/pacman.conf"
+#define CONFIG_PATH "./etc/panificatie.conf"
 
 #endif
 
