@@ -8,7 +8,6 @@
 #include <alpm.h>
 #include "config.h"
 #include "util.h"
-#include "pacman_conf.h"
 
 int main(void) {
   

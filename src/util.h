@@ -21,7 +21,7 @@
 #define vect(_v) { (_v)->s = (_v)->l; (_v)->v = realloc((_v)->v, sizeof(*(_v)->v) * (_v)->s); } 
 #define vecfree(_v) { free((_v)->v); free(_v); } 
 #define vecforeach(_v, type, ret) for (type *ret = (_v)->v; ret != (_v)->v + (_v)->l; ++ret)
-#define svecforeach(_v, type, ret) for (type *ret = (_v); ret != (_v) + VEC_LEN(_v); ++ret)
+#define svecforeach(_v, type, ret) for (type *ret = (_v); ret != (type*)(_v) + VEC_LEN(_v); ++ret)
 #define alpmforeach(_list, res) for (alpm_list_t *res = (_list); res; res = res->next) 
 
 DEF_VEC(char *, strv);

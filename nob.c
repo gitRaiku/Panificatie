@@ -112,8 +112,21 @@ void debug() {
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
 }
 
+void clean() {
+  Nob_Cmd cmd = {0};
+  nob_cmd_append(&cmd, "echo", OBJF"*");
+  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not remove "OBJF"/*!\n"); exit(1); }
+}
+
 int main(int argc, char **argv) {
   NOB_GO_REBUILD_URSELF(argc, argv);
+
+  if (argc > 1) {
+    if (!strcmp(argv[1], "clean")) {
+      clean();
+      return 0;
+    }
+  }
 
   rebuild();
 
