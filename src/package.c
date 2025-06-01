@@ -1,5 +1,8 @@
 #include "package.h"
 
+#define STB_DS_IMPLEMENTATION
+#include "stb_ds.h"
+
 alpm_handle_t *alpm;
 alpm_list_t *dblist;
 
@@ -59,11 +62,13 @@ void push_pkg(const char *name, struct package pkg) {
 }
 
 void insert_pkg(alpm_pkg_t *pkg) {
-  fprintf(stdout, "Provides: %s\n", alpm_pkg_get_name(pkg));
+  fprintf(stdout, "Package: %s\n", alpm_pkg_get_name(pkg));
   push_pkg(alpm_pkg_get_name(pkg), (struct package){pkg, PKG_ALPM});
   alpmforeach(alpm_pkg_get_provides(pkg), cp) {
-    fprintf(stdout, "Provides: %s\n", alpm_pkg_get_name(cp->data));
-    push_pkg(alpm_pkg_get_name(cp->data), (struct package) { cp->data, PKG_ALPM });
+    if (strcmp(((alpm_depend_t*)cp->data)->name, alpm_pkg_get_name(pkg))) {
+      fprintf(stdout, "  Provides: %s\n", ((alpm_depend_t*)cp->data)->name);
+      push_pkg(((alpm_depend_t*)cp->data)->name, (struct package) {pkg, PKG_ALPM});
+    }
   }
 }
 
@@ -72,7 +77,10 @@ void init_packagedb() {
   alpm = alpm_initialize(ALPM_ROOT, ALPM_DBPATH, &er);
   ENEZ(er, "Could not initialize alpm %s", alpm_strerror(er));
 
-  svecforeach(pacman_repositories, const char*, repo) { alpm_register_syncdb(alpm, *repo, 0); }
+  svecforeach(pacman_repositories, const char* const, repo) { 
+    fprintf(stdout, "Registering %s\n", *repo);
+    alpm_register_syncdb(alpm, *repo, 0); 
+  }
   dblist = alpm_get_syncdbs(alpm);
 
   alpmforeach(dblist, i) {
@@ -80,6 +88,23 @@ void init_packagedb() {
       insert_pkg(j->data);
     }
   }
+
+  size_t np = shlenu(pkgdb);
+  fprintf(stdout, "Total %lu packages\n", np);
+  {
+    int32_t i, j;
+    for(i = 0; i < np; ++i) {
+      if (pkgdb[i].value->l > 1){ 
+      fprintf(stdout, "%s -> [", pkgdb[i].key);
+        for(j = 0; j < pkgdb[i].value->l; ++j) {
+          fprintf(stdout, "%s ", alpm_pkg_get_name((alpm_pkg_t*)pkgdb[i].value->v[j].d));
+        }
+        fprintf(stdout, "]\n");
+      }
+    }
+  }
+
+
 
   return;
 

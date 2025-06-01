@@ -6,7 +6,7 @@
 #define PACMAN_CONF "/etc/pacman.conf"
 #define CONFIG_PATH "./etc/panificatie.conf"
 
-const char *pacman_repositories[] = { "core", "extra", "multilib" };
+static const char *const pacman_repositories[] = { "core", "extra", "multilib" };
 
 #endif
 

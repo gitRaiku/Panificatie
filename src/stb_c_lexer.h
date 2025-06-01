@@ -57,47 +57,129 @@
 #error "Can only use stb_c_lexer in contexts where the preprocessor symbols 'Y' and 'N' are not defined"
 #endif
 
+
+#define STB_C_LEX_C_DECIMAL_INTS    N
+#define STB_C_LEX_C_HEX_INTS        N
+#define STB_C_LEX_C_OCTAL_INTS      N
+#define STB_C_LEX_C_DECIMAL_FLOATS  N
+#define STB_C_LEX_C_SQ_STRINGS      Y
+#define STB_C_LEX_C_CHARS           Y
+#define STB_C_LEX_C_COMPARISONSl    N
+#define STB_C_LEX_C_LOGICAL         N
+#define STB_C_LEX_C_SHIFTS          N
+#define STB_C_LEX_C_INCREMENTS      N
+#define STB_C_LEX_C_ARROW           N
+#define STB_C_LEX_C_BITWISEEQ       N
+#define STB_C_LEX_C_ARITHEQ         N
+
+
+
+
+#ifndef STB_C_LEX_C_DECIMAL_INTS
 #define STB_C_LEX_C_DECIMAL_INTS    Y   //  "0|[1-9][0-9]*"                        CLEX_intlit
+#endif
+#ifndef STB_C_LEX_C_HEX_INTS
 #define STB_C_LEX_C_HEX_INTS        Y   //  "0x[0-9a-fA-F]+"                       CLEX_intlit
+#endif
+#ifndef STB_C_LEX_C_OCTAL_INTS
 #define STB_C_LEX_C_OCTAL_INTS      Y   //  "[0-7]+"                               CLEX_intlit
+#endif
+#ifndef STB_C_LEX_C_DECIMAL_FLOATS
 #define STB_C_LEX_C_DECIMAL_FLOATS  Y   //  "[0-9]*(.[0-9]*([eE][-+]?[0-9]+)?)     CLEX_floatlit
+#endif
+#ifndef STB_C_LEX_C99_HEX_FLOATS
 #define STB_C_LEX_C99_HEX_FLOATS    N   //  "0x{hex}+(.{hex}*)?[pP][-+]?{hex}+     CLEX_floatlit
+#endif
+#ifndef STB_C_LEX_C_IDENTIFIERS
 #define STB_C_LEX_C_IDENTIFIERS     Y   //  "[_a-zA-Z][_a-zA-Z0-9]*"               CLEX_id
+#endif
+#ifndef STB_C_LEX_C_DQ_STRINGS
 #define STB_C_LEX_C_DQ_STRINGS      Y   //  double-quote-delimited strings with escapes  CLEX_dqstring
+#endif
+#ifndef STB_C_LEX_C_SQ_STRINGS
 #define STB_C_LEX_C_SQ_STRINGS      N   //  single-quote-delimited strings with escapes  CLEX_ssstring
+#endif
+#ifndef STB_C_LEX_C_CHARS
 #define STB_C_LEX_C_CHARS           Y   //  single-quote-delimited character with escape CLEX_charlits
+#endif
+#ifndef STB_C_LEX_C_COMMENTS
 #define STB_C_LEX_C_COMMENTS        Y   //  "/* comment */"
+#endif
+#ifndef STB_C_LEX_CPP_COMMENTS
 #define STB_C_LEX_CPP_COMMENTS      Y   //  "// comment to end of line\n"
+#endif
+#ifndef STB_C_LEX_C_COMPARISONS
 #define STB_C_LEX_C_COMPARISONS     Y   //  "==" CLEX_eq  "!=" CLEX_noteq   "<=" CLEX_lesseq  ">=" CLEX_greatereq
+#endif
+#ifndef STB_C_LEX_C_LOGICAL
 #define STB_C_LEX_C_LOGICAL         Y   //  "&&"  CLEX_andand   "||"  CLEX_oror
+#endif
+#ifndef STB_C_LEX_C_SHIFTS
 #define STB_C_LEX_C_SHIFTS          Y   //  "<<"  CLEX_shl      ">>"  CLEX_shr
+#endif
+#ifndef STB_C_LEX_C_INCREMENTS
 #define STB_C_LEX_C_INCREMENTS      Y   //  "++"  CLEX_plusplus "--"  CLEX_minusminus
+#endif
+#ifndef STB_C_LEX_C_ARROW
 #define STB_C_LEX_C_ARROW           Y   //  "->"  CLEX_arrow
+#endif
+#ifndef STB_C_LEX_EQUAL_ARROW
 #define STB_C_LEX_EQUAL_ARROW       N   //  "=>"  CLEX_eqarrow
+#endif
+#ifndef STB_C_LEX_C_BITWISEEQ
 #define STB_C_LEX_C_BITWISEEQ       Y   //  "&="  CLEX_andeq    "|="  CLEX_oreq     "^="  CLEX_xoreq
+#endif
+#ifndef STB_C_LEX_C_ARITHEQ
 #define STB_C_LEX_C_ARITHEQ         Y   //  "+="  CLEX_pluseq   "-="  CLEX_minuseq
+#endif
                                         //  "*="  CLEX_muleq    "/="  CLEX_diveq    "%=" CLEX_modeq
                                         //  if both STB_C_LEX_SHIFTS & STB_C_LEX_ARITHEQ:
                                         //                      "<<=" CLEX_shleq    ">>=" CLEX_shreq
 
+#ifndef STB_C_LEX_PARSE_SUFFIXES
 #define STB_C_LEX_PARSE_SUFFIXES    N   // letters after numbers are parsed as part of those numbers, and must be in suffix list below
+#endif
+#ifndef STB_C_LEX_DECIMAL_SUFFIXES
 #define STB_C_LEX_DECIMAL_SUFFIXES  ""  // decimal integer suffixes e.g. "uUlL" -- these are returned as-is in string storage
+#endif
+#ifndef STB_C_LEX_HEX_SUFFIXES
 #define STB_C_LEX_HEX_SUFFIXES      ""  // e.g. "uUlL"
+#endif
+#ifndef STB_C_LEX_OCTAL_SUFFIXES
 #define STB_C_LEX_OCTAL_SUFFIXES    ""  // e.g. "uUlL"
+#endif
+#ifndef STB_C_LEX_FLOAT_SUFFIXES
 #define STB_C_LEX_FLOAT_SUFFIXES    ""  //
+#endif
 
+#ifndef STB_C_LEX_0_IS_EOF
 #define STB_C_LEX_0_IS_EOF             N  // if Y, ends parsing at '\0'; if N, returns '\0' as token
+#endif
 #define STB_C_LEX_INTEGERS_AS_DOUBLES  N  // parses integers as doubles so they can be larger than 'int', but only if STB_C_LEX_STDLIB==N
+#ifndef STB_C_LEX_MULTILINE_DSTRINGS
 #define STB_C_LEX_MULTILINE_DSTRINGS   N  // allow newlines in double-quoted strings
+#endif
+#ifndef STB_C_LEX_MULTILINE_SSTRINGS
 #define STB_C_LEX_MULTILINE_SSTRINGS   N  // allow newlines in single-quoted strings
+#endif
+#ifndef STB_C_LEX_USE_STDLIB
 #define STB_C_LEX_USE_STDLIB           Y  // use strtod,strtol for parsing #s; otherwise inaccurate hack
+#endif
+#ifndef STB_C_LEX_DOLLAR_IDENTIFIER
 #define STB_C_LEX_DOLLAR_IDENTIFIER    Y  // allow $ as an identifier character
+#endif
+#ifndef STB_C_LEX_FLOAT_NO_DECIMAL
 #define STB_C_LEX_FLOAT_NO_DECIMAL     Y  // allow floats that have no decimal point if they have an exponent
+#endif
 
+#ifndef STB_C_LEX_DEFINE_ALL_TOKEN_NAMES
 #define STB_C_LEX_DEFINE_ALL_TOKEN_NAMES  N   // if Y, all CLEX_ token names are defined, even if never returned
+#endif
                                               // leaving it as N should help you catch config bugs
 
+#ifndef STB_C_LEX_DISCARD_PREPROCESSOR
 #define STB_C_LEX_DISCARD_PREPROCESSOR    Y   // discard C-preprocessor directives (e.g. after prepocess
+#endif
                                               // still have #line, #pragma, etc)
 
 //#define STB_C_LEX_ISWHITE(str)    ... // return length in bytes of whitespace characters if first char is whitespace
@@ -332,6 +414,7 @@ static const char *stb__strchr(const char *str, int ch)
 #endif
 
 // parse suffixes at the end of a number
+#ifdef STB__clex_parse_suffixes
 static int stb__clex_parse_suffixes(stb_lexer *lexer, long tokenid, char *start, char *cur, const char *suffixes)
 {
    #ifdef STB__clex_parse_suffixes
@@ -350,6 +433,7 @@ static int stb__clex_parse_suffixes(stb_lexer *lexer, long tokenid, char *start,
    #endif
    return stb__clex_token(lexer, tokenid, start, cur-1);
 }
+#endif
 
 #ifndef STB__CLEX_use_stdlib
 static double stb__clex_pow(double base, unsigned int exponent)

@@ -5,9 +5,6 @@
 #include "config.h"
 #include "util.h"
 
-#define STB_DS_IMPLEMENTATION
-#include "stb_ds.h"
-
 enum packageType {
   PKG_ALPM,
   PKG_AUR,
@@ -23,6 +20,8 @@ struct package {
 DEF_VEC(struct package, pkgv);
 
 struct packageEntry { char *key; struct pkgv *value; };
+
+void init_packagedb();
 
 
 #endif

@@ -15,6 +15,11 @@
 #define ENULL(cmd, res, args...) if ((cmd) == NULL) { fprintf(stderr, res ": %m!\n", ##args); exit(1); }
 #define ENEZ(cmd, res, args...) if ((cmd) != 0) { fprintf(stderr, res ": %m!\n", ##args); exit(1); }
 #define ENEG(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %m!\n", ##args); exit(1); }
+#define EEZERO(cmd, res, args...) if ((cmd) == 0) { fprintf(stderr, res "!\n", ##args); exit(1); }
+#define EENULL(cmd, res, args...) if ((cmd) == NULL) { fprintf(stderr, res "!\n", ##args); exit(1); }
+#define EENEZ(cmd, res, args...) if ((cmd) != 0) { fprintf(stderr, res "!\n", ##args); exit(1); }
+#define EENEG(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res "!\n", ##args); exit(1); }
+#define TODO(str) {fprintf(stderr, "TODO: "str" at "__FILE__": %u!\n", __LINE__); exit(1); }
 #define veci(type, ret) { struct type *_cv = malloc(sizeof(struct type)); _cv->s = 4; _cv->l = 0; _cv->v = malloc(sizeof(*_cv->v) * _cv->s); ENULL(_cv->v, "MEMORY WHAT?"); (ret) = _cv; }
 #define vecsi(type, ret) { struct type *_cv = malloc(sizeof(struct type)); _cv->s = 1; _cv->l = 0; _cv->v = malloc(sizeof(*_cv->v) * _cv->s); ENULL(_cv->v, "MEMORY WHAT?"); (ret) = _cv; }
 #define vecp(_v, _val) { if ((_v)->l == (_v)->s) { (_v)->s *= 2; (_v)->v = realloc((_v)->v, sizeof(*(_v)->v) * (_v)->s); ENULL((_v)->v, "MEMORY WHAT?"); } (_v)->v[(_v)->l] = (_val); ++(_v)->l; } 

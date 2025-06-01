@@ -114,11 +114,19 @@ void debug() {
 
 void clean() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "echo", OBJF"*");
+  nob_cmd_append(&cmd, "sh", "-c", "rm "OBJF"*"); /// TODO: What the fuck
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not remove "OBJF"/*!\n"); exit(1); }
 }
 
+void clear_screen() {
+  Cmd cmd = {0};
+  nob_cmd_append(&cmd, "clear");
+  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not clear the screen\n"); exit(1); }
+}
+
 int main(int argc, char **argv) {
+  clear_screen();
+
   NOB_GO_REBUILD_URSELF(argc, argv);
 
   if (argc > 1) {

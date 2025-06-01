@@ -12,7 +12,12 @@
 #include "config.h"
 #include "util.h"
 
-#define STB_C_LEXER_IMPLEMENTATION
-#include "stb_c_lexer.h"
+struct panix_config *parse_config(char *fname);
+
+struct panix_config {
+  struct strv *pacmanPkgs;
+
+  char curstr[128];
+};
 
 #endif
