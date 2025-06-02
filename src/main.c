@@ -11,10 +11,13 @@
 #include "conf_parser.h"
 
 int main(void) {
-  // init_packagedb();
-  parse_config(CONFIG_PATH);
-  
+  init_packagedb();
+  struct panix_config *pc = parse_config(CONFIG_PATH);
 
+  expand_and_check_pacman(pc->pacmanPkgs);
+  
+  free_config(pc);
+  free_packagedb();
   return 0;
 }
 

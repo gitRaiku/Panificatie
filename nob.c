@@ -112,6 +112,12 @@ void debug() {
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
 }
 
+void valgrind() {
+  Nob_Cmd cmd = {0};
+  nob_cmd_append(&cmd, "valgrind", "--leak-check=full", "./"TARGET);
+  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not valgrind %s!\n", TARGET); exit(1); }
+}
+
 void clean() {
   Nob_Cmd cmd = {0};
   nob_cmd_append(&cmd, "sh", "-c", "rm "OBJF"*"); /// TODO: What the fuck
@@ -143,6 +149,8 @@ int main(int argc, char **argv) {
       run();
     } else if (!strcmp(argv[1], "debug")) {
       debug();
+    } else if (!strcmp(argv[1], "valgrind")) {
+      valgrind();
     }
   }
 

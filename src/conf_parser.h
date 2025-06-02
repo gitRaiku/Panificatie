@@ -20,4 +20,7 @@ struct panix_config {
   char curstr[128];
 };
 
+void free_config(struct panix_config *pc);
+
+
 #endif

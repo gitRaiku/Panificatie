@@ -11,9 +11,10 @@ char *packages[] = {
   "tpm2-tss"
 };
 
-struct packageEntry *pkgdb = NULL;
-
-struct packageEntry *requiredPackages;
+struct depEntry *pkgdb = NULL;
+alpm_list_t *requiredPackages = NULL; /// I absolutely hate the fact searching in this is linear
+                                     /// But it shouldn't be an actual problem
+                                     /// (Especially when comparing speed with nix)
 
 void print_pkg(alpm_handle_t *alpm, alpm_pkg_t *pkg) {
   fprintf(stdout, "%s\n", alpm_pkg_get_name(pkg));
@@ -32,22 +33,11 @@ alpm_pkg_t *find_package(char *pname) {
 }
 
 void require_package(char *pname) {
-  /*
-  static uint32_t indentLevel = -1;
-  indentLevel += 1;
+  /// TODO: Handle replaces as well
   alpm_pkg_t *pkg = find_package(pname);
-  if (pkg == NULL) { fprintf(stderr, "Could not find package %s, skipping!\n", pname); goto end; }
+  if (pkg == NULL) { fprintf(stderr, "Could not find package %s, skipping!\n", pname); return; }
 
-  if (shgeti(requiredPackages, pname) < 0) {
-    for(uint32_t i = 0; i < indentLevel; ++i) { fprintf(stdout, "  "); } fprintf(stdout, "Added %s\n", pname);
-    shput(requiredPackages, pname, pkg);
-    alpmforeach(alpm_pkg_get_depends(pkg), pk) {
-      require_package(((alpm_depend_t*)pk->data)->name);
-    }
-  }
-end:;
-  indentLevel -= 1;
-  */
+  alpm_list_add(requiredPackages, pkg);
 }
 
 void push_pkg(const char *name, struct package pkg) {
@@ -62,11 +52,11 @@ void push_pkg(const char *name, struct package pkg) {
 }
 
 void insert_pkg(alpm_pkg_t *pkg) {
-  fprintf(stdout, "Package: %s\n", alpm_pkg_get_name(pkg));
+  //fprintf(stdout, "Package: %s\n", alpm_pkg_get_name(pkg));
   push_pkg(alpm_pkg_get_name(pkg), (struct package){pkg, PKG_ALPM});
   alpmforeach(alpm_pkg_get_provides(pkg), cp) {
     if (strcmp(((alpm_depend_t*)cp->data)->name, alpm_pkg_get_name(pkg))) {
-      fprintf(stdout, "  Provides: %s\n", ((alpm_depend_t*)cp->data)->name);
+      //fprintf(stdout, "  Provides: %s\n", ((alpm_depend_t*)cp->data)->name);
       push_pkg(((alpm_depend_t*)cp->data)->name, (struct package) {pkg, PKG_ALPM});
     }
   }
@@ -78,7 +68,7 @@ void init_packagedb() {
   ENEZ(er, "Could not initialize alpm %s", alpm_strerror(er));
 
   svecforeach(pacman_repositories, const char* const, repo) { 
-    fprintf(stdout, "Registering %s\n", *repo);
+    //fprintf(stdout, "Registering %s\n", *repo);
     alpm_register_syncdb(alpm, *repo, 0); 
   }
   dblist = alpm_get_syncdbs(alpm);
@@ -88,38 +78,33 @@ void init_packagedb() {
       insert_pkg(j->data);
     }
   }
-
-  size_t np = shlenu(pkgdb);
-  fprintf(stdout, "Total %lu packages\n", np);
-  {
-    int32_t i, j;
-    for(i = 0; i < np; ++i) {
-      if (pkgdb[i].value->l > 1){ 
-      fprintf(stdout, "%s -> [", pkgdb[i].key);
-        for(j = 0; j < pkgdb[i].value->l; ++j) {
-          fprintf(stdout, "%s ", alpm_pkg_get_name((alpm_pkg_t*)pkgdb[i].value->v[j].d));
-        }
-        fprintf(stdout, "]\n");
-      }
-    }
-  }
-
-
-
-  return;
-
-  svecforeach(packages, char*, pkg) {
-    require_package(*pkg);
-  }
-
-  alpm_list_t *packages = NULL;
-
-  alpmforeach(packages, i) {
-    print_pkg(alpm, i->data);
-  }
-  alpm_list_free(packages);
-
-  ENEG(alpm_release(alpm), "Could not release alpm!");
 }
 
+void expand_and_check_pacman(struct strv *pkgs) {
+  vecforeach(pkgs, char*, pname) {
+    require_package(*pname);
+  }
+  alpmforeach(requiredPackages, pkg) {
+    fprintf(stdout, "Final package: %s\n", alpm_pkg_get_name(((alpm_pkg_t*)pkg->data)));
+  }
+  alpm_list_t *conflicts = alpm_checkconflicts(alpm, requiredPackages);
+  alpmforeach(conflicts, conf) { /// TODO: Print conflict waterfall
+    fprintf(stderr, "Package %s conflicts with %s due to %s! Aborting!", 
+        alpm_pkg_get_name(((alpm_conflict_t*)conf->data)->package1),
+        alpm_pkg_get_name(((alpm_conflict_t*)conf->data)->package2),
+        alpm_dep_compute_string(((alpm_conflict_t*)conf->data)->reason));
+  }
+}
 
+void free_package(struct package *pkg) {}
+
+void free_packagedb() {
+  size_t np = shlenu(pkgdb);
+  for(uint32_t i = 0; i < np; ++i) {
+    vecforeach(pkgdb[i].value, struct package, pkg) { free_package(pkg); }
+    vecfree(pkgdb[i].value);
+  }
+
+  shfree(pkgdb);
+  ENEG(alpm_release(alpm), "Could not release alpm!");
+}

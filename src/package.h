@@ -19,10 +19,13 @@ struct package {
 
 DEF_VEC(struct package, pkgv);
 
-struct packageEntry { char *key; struct pkgv *value; };
+struct depEntry { char *key; struct pkgv *value; };
+struct pacEntry { alpm_pkg_t *key; uint8_t value; };
+
+void expand_and_check_pacman(struct strv *pkgs);
 
 void init_packagedb();
-
+void free_packagedb();
 
 #endif
 
