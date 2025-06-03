@@ -18,7 +18,7 @@ time_t __attribute((pure)) max(time_t o1, time_t o2) { return o1 > o2 ? o1 : o2;
 
 const char *CCFLAGS[] = { 
   "-Wall", "-Wextra", // "-Wpedantic", 
-  "-Wno-variadic-macros",
+  "-Wno-variadic-macros", "-Wno-unused-parameter",
   "-Og", "-ggdb3",
   "-lalpm", "-D_FILE_OFFSET_BITS=64", // ??????????? Be able to write files bigger than 2Gb?? Idk
 };

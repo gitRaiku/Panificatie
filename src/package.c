@@ -34,12 +34,181 @@ void db_insert_pkg(alpm_pkg_t *pkg) {
   }
 }
 
+void alpm_log_callback(void *ctx, alpm_loglevel_t level, const char *fmt, va_list args) {
+  return;
+  char logf[256];
+  snprintf(logf, 256, "Log: %u %s", level, fmt);
+  vfprintf(stdout, logf, args);
+}
+
+void alpm_download_callback(void *ctx, const char *filename, alpm_download_event_type_t event, void *data) {
+  fprintf(stdout, "Download callback for %s: ", filename);
+  switch (event) {
+    case ALPM_DOWNLOAD_INIT:
+      fprintf(stdout, "Init [optional:%u]\n", 
+        ((alpm_download_event_init_t*)data)->optional);
+      break;
+    case ALPM_DOWNLOAD_PROGRESS:
+      fprintf(stdout, "Progress [downloaded:%li] [total:%li]\n", 
+        ((alpm_download_event_progress_t*)data)->downloaded,
+        ((alpm_download_event_progress_t*)data)->total);
+      break;
+    case ALPM_DOWNLOAD_RETRY:
+      fprintf(stdout, "Retry [resume:%u]\n", 
+        ((alpm_download_event_retry_t*)data)->resume);
+      break;
+    case ALPM_DOWNLOAD_COMPLETED:
+      fprintf(stdout, "Completed [total:%li] [result:%u]\n", 
+        ((alpm_download_event_completed_t*)data)->total,
+        ((alpm_download_event_completed_t*)data)->result);
+      break;
+  }
+}
+
+///**
+// * Type of question.
+// * Unlike the events or progress enumerations, this enum has bitmask values
+// * so a frontend can use a bitmask map to supply preselected answers to the
+// * different types of questions.
+// */
+//typedef enum _alpm_question_type_t {
+//	/** Should target in ignorepkg be installed anyway? */
+//	ALPM_QUESTION_INSTALL_IGNOREPKG = (1 << 0),
+//	/** Should a package be replaced? */
+//	ALPM_QUESTION_REPLACE_PKG = (1 << 1),
+//	/** Should a conflicting package be removed? */
+//	ALPM_QUESTION_CONFLICT_PKG = (1 << 2),
+//	/** Should a corrupted package be deleted? */
+//	ALPM_QUESTION_CORRUPTED_PKG = (1 << 3),
+//	/** Should unresolvable targets be removed from the transaction? */
+//	ALPM_QUESTION_REMOVE_PKGS = (1 << 4),
+//	/** Provider selection */
+//	ALPM_QUESTION_SELECT_PROVIDER = (1 << 5),
+//	/** Should a key be imported? */
+//	ALPM_QUESTION_IMPORT_KEY = (1 << 6)
+//} alpm_question_type_t;
+//
+///** A question that can represent any other question. */
+//typedef struct _alpm_question_any_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer */
+//	int answer;
+//} alpm_question_any_t;
+//
+///** Should target in ignorepkg be installed anyway? */
+//typedef struct _alpm_question_install_ignorepkg_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer: whether or not to install pkg anyway */
+//	int install;
+//	/** The ignored package that we are deciding whether to install */
+//	alpm_pkg_t *pkg;
+//} alpm_question_install_ignorepkg_t;
+//
+///** Should a package be replaced? */
+//typedef struct _alpm_question_replace_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer: whether or not to replace oldpkg with newpkg */
+//	int replace;
+//	/** Package to be replaced */
+//	alpm_pkg_t *oldpkg;
+//	/** Package to replace with.*/
+//	alpm_pkg_t *newpkg;
+//	/** DB of newpkg */
+//	alpm_db_t *newdb;
+//} alpm_question_replace_t;
+//
+///** Should a conflicting package be removed? */
+//typedef struct _alpm_question_conflict_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer: whether or not to remove conflict->package2 */
+//	int remove;
+//	/** Conflict info */
+//	alpm_conflict_t *conflict;
+//} alpm_question_conflict_t;
+//
+///** Should a corrupted package be deleted? */
+//typedef struct _alpm_question_corrupted_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer: whether or not to remove filepath */
+//	int remove;
+//	/** File to remove */
+//	const char *filepath;
+//	/** Error code indicating the reason for package invalidity */
+//	alpm_errno_t reason;
+//} alpm_question_corrupted_t;
+//
+///** Should unresolvable targets be removed from the transaction? */
+//typedef struct _alpm_question_remove_pkgs_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer: whether or not to skip packages */
+//	int skip;
+//	/** List of alpm_pkg_t* with unresolved dependencies */
+//	alpm_list_t *packages;
+//} alpm_question_remove_pkgs_t;
+//
+///** Provider selection */
+//typedef struct _alpm_question_select_provider_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer: which provider to use (index from providers) */
+//	int use_index;
+//	/** List of alpm_pkg_t* as possible providers */
+//	alpm_list_t *providers;
+//	/** What providers provide for */
+//	alpm_depend_t *depend;
+//} alpm_question_select_provider_t;
+//
+///** Should a key be imported? */
+//typedef struct _alpm_question_import_key_t {
+//	/** Type of question */
+//	alpm_question_type_t type;
+//	/** Answer: whether or not to import key */
+//	int import;
+//	/** UID of the key to import */
+//	const char *uid;
+//	/** Fingerprint the key to import */
+//	const char *fingerprint;
+//} alpm_question_import_key_t;
+
+void alpm_question_callback(void *ctx, alpm_question_t *question) { /// TODO: Fill out excel spreadsheet
+  fprintf(stdout, "Got question:");
+  if (question->type & ALPM_QUESTION_INSTALL_IGNOREPKG) {
+  fprintf(stdout, " INSTALL_IGNOREPKG");
+  } else if (question->type & ALPM_QUESTION_REPLACE_PKG) {
+  fprintf(stdout, " REPLACE_PKG");
+  } else if (question->type & ALPM_QUESTION_CONFLICT_PKG) {
+  fprintf(stdout, " CONFLICT_PKG");
+  } else if (question->type & ALPM_QUESTION_CORRUPTED_PKG) {
+  fprintf(stdout, " CORRUPTED_PKG");
+  } else if (question->type & ALPM_QUESTION_REMOVE_PKGS) {
+  fprintf(stdout, " REMOVE_PKGS");
+  } else if (question->type & ALPM_QUESTION_SELECT_PROVIDER) {
+  fprintf(stdout, " SELECT_PROVIDER");
+  } else if (question->type & ALPM_QUESTION_IMPORT_KEY) {
+  fprintf(stdout, " IMPORT_KEY");
+  }
+}
+
+void alpm_event_callback(void *ctx, alpm_event_t *event) { /// TODO: Event cb
+
+}
+
+void alpm_progress_callback(void *ctx, alpm_progress_t progress, const char *pkg, int percent, size_t howmany, size_t current) {
+  fprintf(stdout, "Alpm progress: %u %s %u%% %lu/%lu\n", progress, pkg, percent, howmany, current);
+}
+
+
+
 void init_packagedb() {
   alpm_errno_t er = 0;
   alpm = alpm_initialize(ALPM_ROOT, ALPM_DBPATH, &er);
   ENEZ(er, "Could not initialize alpm %s", alpm_strerror(er));
-
-  //alpm_option_set_logcb(alpm, alpm_log_callback, NULL);
 
   svecforeach(pacman_repositories, const char* const, repo) { 
     fprintf(stdout, "Registering %s\n", *repo);
@@ -56,6 +225,12 @@ void init_packagedb() {
       db_insert_pkg(j->data);
     }
   }
+
+  alpm_option_set_logcb(alpm, alpm_log_callback, NULL);
+  alpm_option_set_dlcb(alpm, alpm_download_callback, NULL);
+  alpm_option_set_eventcb(alpm, alpm_event_callback, NULL);
+  alpm_option_set_progresscb(alpm, alpm_progress_callback, NULL);
+  alpm_option_set_questioncb(alpm, alpm_question_callback, NULL);
 }
 
 alpm_pkg_t *find_package(char *pname, uint8_t firstRun) {
@@ -87,7 +262,6 @@ void require_package(char *pname, uint8_t firstRun) {
   }
 }
 
-void alpm_log_callback(void *ctx, alpm_loglevel_t level, const char *fmt, va_list args) {char logf[256];snprintf(logf, 256, "Log: %u %s", level, fmt);vfprintf(stdout, logf, args);}
 #define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", alpm_strerror(alpm_errno(alpm)), ##args); alpm_trans_release(alpm); alpm_release(alpm); exit(1); }
 void transflag_pacman() { // Pacman supports trans rights
   EALPM(alpm_trans_init(alpm, /*ALPM_TRANS_FLAG_DOWNLOADONLY |*/ ALPM_TRANS_FLAG_NEEDED), "Could not init alpm transaction, are you running as root?"); // TODO: Make error messages better
@@ -106,7 +280,6 @@ void transflag_pacman() { // Pacman supports trans rights
     alpm_release(alpm);
     exit(1);
   }
-  /*
   if (alpm_trans_commit(alpm, &errlist) < 0) {
     fprintf(stderr, "Could not commit the pacman transaction: %s!\n", alpm_strerror(alpm_errno(alpm)));
     alpmforeach(errlist, err) {
@@ -120,7 +293,6 @@ void transflag_pacman() { // Pacman supports trans rights
     alpm_release(alpm);
     exit(1);
   }
-  */
   EALPM(alpm_trans_release(alpm), "Could not release the pacman transaction!\n");
 }
 
