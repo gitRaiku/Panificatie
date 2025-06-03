@@ -177,7 +177,7 @@ void alpm_download_callback(void *ctx, const char *filename, alpm_download_event
 //} alpm_question_import_key_t;
 
 void alpm_question_callback(void *ctx, alpm_question_t *question) { /// TODO: Fill out excel spreadsheet
-  fprintf(stdout, "Got question:");
+  fprintf(stdout, "Got question:\n");
   if (question->type & ALPM_QUESTION_INSTALL_IGNOREPKG) {
   fprintf(stdout, " INSTALL_IGNOREPKG");
   } else if (question->type & ALPM_QUESTION_REPLACE_PKG) {
@@ -189,18 +189,31 @@ void alpm_question_callback(void *ctx, alpm_question_t *question) { /// TODO: Fi
   } else if (question->type & ALPM_QUESTION_REMOVE_PKGS) {
   fprintf(stdout, " REMOVE_PKGS");
   } else if (question->type & ALPM_QUESTION_SELECT_PROVIDER) {
-  fprintf(stdout, " SELECT_PROVIDER");
+  alpm_question_select_provider_t *q = &question->select_provider;
+  fprintf(stdout, "Multiple Providers for %s!\n", q->depend->name);
+  int32_t ci = 1;
+  alpmforeach(q->providers, prov) { 
+    fprintf(stdout, "  %u) %s", ci++, alpm_pkg_get_name(prov->data));
+  }
+  int32_t cc = 1;
+  do {
+    fscanf(stdin, "%i", &cc);
+  } while (!(1 <= cc && cc <= ci));
+  q->use_index = cc;
+  
+
   } else if (question->type & ALPM_QUESTION_IMPORT_KEY) {
   fprintf(stdout, " IMPORT_KEY");
   }
+  fprintf(stdout, "\n");
 }
 
 void alpm_event_callback(void *ctx, alpm_event_t *event) { /// TODO: Event cb
-
+  fprintf(stdout, "Alpm event callback!\n");
 }
 
 void alpm_progress_callback(void *ctx, alpm_progress_t progress, const char *pkg, int percent, size_t howmany, size_t current) {
-  fprintf(stdout, "Alpm progress: %u %s %u%% %lu/%lu\n", progress, pkg, percent, howmany, current);
+  fprintf(stdout, "Alpm progress: %u %s %u%% %lu/%lu\n", progress, pkg, percent, current, howmany);
 }
 
 
