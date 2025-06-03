@@ -1886,12 +1886,3 @@ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ------------------------------------------------------------------------------
 */
-/* vim: set filetype=Java */
-/* -*- mode: Java; -*- */
-/* -*- Java -*- */
-vim: syntax=Java
-vim: set syntax=Java:
-vim: set filetype=Java:
-vim: set ft=Java:
--*- mode: Java; -*-
--*- Java -*-
