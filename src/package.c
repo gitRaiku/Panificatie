@@ -37,7 +37,7 @@ void require_package(char *pname) {
   alpm_pkg_t *pkg = find_package(pname);
   if (pkg == NULL) { fprintf(stderr, "Could not find package %s, skipping!\n", pname); return; }
 
-  alpm_list_add(requiredPackages, pkg);
+  requiredPackages = alpm_list_add(requiredPackages, pkg);
 }
 
 void push_pkg(const char *name, struct package pkg) {
@@ -80,7 +80,47 @@ void init_packagedb() {
   }
 }
 
-void expand_and_check_pacman(struct strv *pkgs) {
+#define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", alpm_strerror(alpm_errno(alpm)), ##args); exit(1); }
+void transflag_pacman() { // Pacman supports trans rights
+  EALPM(alpm_trans_init(alpm, ALPM_TRANS_FLAG_DOWNLOADONLY | ALPM_TRANS_FLAG_NEEDED), "Could not init alpm transaction")
+  alpmforeach(requiredPackages, pkg) { EALPM(alpm_add_pkg(alpm, pkg->data), "Could not add package %s to the transaction", alpm_pkg_get_name(pkg->data)); }
+  alpm_list_t *depmissing;
+  if (alpm_trans_prepare(alpm, &depmissing) < 0) {
+    alpmforeach(depmissing, dep) {
+      fprintf(stderr, "Could not complete pacman transaction: [target:%s] [depend:%s] [causingpkg:%s]!\n",  /// TODO: Cleanup
+          ((alpm_depmissing_t*)dep->data)->target,
+          ((alpm_depmissing_t*)dep->data)->depend->name,
+          ((alpm_depmissing_t*)dep->data)->causingpkg
+          );
+    }
+    exit(1);
+  }
+
+  
+
+       int alpm_trans_get_flags (alpm_handle_t *handle)
+           Returns the bitfield of flags for the current
+           transaction.
+       alpm_list_t * alpm_trans_get_add (alpm_handle_t *handle)
+           Returns a list of packages added by the transaction.
+       alpm_list_t * alpm_trans_get_remove (alpm_handle_t *handle)
+           Returns the list of packages removed by the
+           transaction.
+       int alpm_trans_init (alpm_handle_t *handle, int flags)
+           Initialize the transaction.
+       int alpm_trans_prepare (alpm_handle_t *handle, alpm_list_t
+           **data)
+           Prepare a transaction.
+       int alpm_trans_commit (alpm_handle_t *handle, alpm_list_t
+           **data)
+           Commit a transaction.
+       int alpm_trans_interrupt (alpm_handle_t *handle)
+           Interrupt a transaction.
+       int alpm_trans_release (alpm_handle_t *handle)
+           Release a transaction.
+}
+
+void install_pacman(struct strv *pkgs) {
   vecforeach(pkgs, char*, pname) {
     require_package(*pname);
   }
@@ -89,10 +129,12 @@ void expand_and_check_pacman(struct strv *pkgs) {
   }
   alpm_list_t *conflicts = alpm_checkconflicts(alpm, requiredPackages);
   alpmforeach(conflicts, conf) { /// TODO: Print conflict waterfall
-    fprintf(stderr, "Package %s conflicts with %s due to %s! Aborting!", 
+                                 /// TODO: Deps are also checked in transaction, maybe better errors there
+    fprintf(stderr, "Package %s conflicts with %s due to [%s]! Aborting!\n", 
         alpm_pkg_get_name(((alpm_conflict_t*)conf->data)->package1),
         alpm_pkg_get_name(((alpm_conflict_t*)conf->data)->package2),
         alpm_dep_compute_string(((alpm_conflict_t*)conf->data)->reason));
+    exit(1);
   }
 }
 

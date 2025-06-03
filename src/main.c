@@ -14,7 +14,7 @@ int main(void) {
   init_packagedb();
   struct panix_config *pc = parse_config(CONFIG_PATH);
 
-  expand_and_check_pacman(pc->pacmanPkgs);
+  install_pacman(pc->pacmanPkgs);
   
   free_config(pc);
   free_packagedb();

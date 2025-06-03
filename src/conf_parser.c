@@ -86,9 +86,14 @@ char *curfile;
 void parsing_error(char *msg) {
   stb_lex_location loc = {0};
   stb_c_lexer_get_location(lex, lex->where_firstchar, &loc);
-  //fprintf(stdout, "%s -> %s %u %u\n", lex->string, where, loc.line_number, loc.line_offset);
-  fprintf(stderr, "Paring error: %s in \"%s\" at %u:%u!\n", msg, curfile, loc.line_number, loc.line_offset);
+  fprintf(stderr, "Parsing error: %s in \"%s\" at %u:%u!\n", msg, curfile, loc.line_number, loc.line_offset);
   exit(1);
+}
+
+void parsing_warning(char *msg) {
+  stb_lex_location loc = {0};
+  stb_c_lexer_get_location(lex, lex->where_firstchar, &loc);
+  fprintf(stderr, "Parsing warning: %s in \"%s\" at %u:%u!\n", msg, curfile, loc.line_number, loc.line_offset);
 }
 
 void lex_descend() {
@@ -110,11 +115,11 @@ void lex_next() {
   if (statev->l == 0) { char a[256]; snprintf(a, 256, "Expected a section keyword, got \"%s\" instead", curstr); parsing_error(a); }
   switch (statev->v[statev->l - 1]) {
     case LEX_PACMAN:
-      fprintf(stdout, "Appending %s\n", curstr);
+      //fprintf(stdout, "Appending %s\n", curstr);
       vecp(pc->pacmanPkgs, strdup(curstr));
       break;
     case LEX_INCLUDE:
-      fprintf(stdout, "Descending %s\n", curstr);
+      //fprintf(stdout, "Descending %s\n", curstr);
       parse_file(curstr);
       break;
     default:
@@ -129,7 +134,7 @@ void lex_ascend() {
   --statev->l;
 }
 
-#define safestrcat(dst, src) { int32_t _sl = VEC_LEN(dst) - strlen(dst) - 1; if (strlen(src) >= _sl) { fprintf(stderr, "Token \"%s\" too long, truncating to 128-characters\n", src); } strncat(dst, src, _sl); }
+#define safestrcat(dst, src) { int32_t _sl = VEC_LEN(dst) - strlen(dst) - 1; if (strlen(src) >= _sl) { char a[256]; snprintf(a, 256, "Token \"%s\" too long, truncating to 128-characters\n", src); parsing_warning(a); } strncat(dst, src, _sl); }
 void process_token() {
   //print_token(lex); return;
   switch (lex->token) {
@@ -184,7 +189,6 @@ void parse_file(char *fname) {
       process_token();
     }
     if (statev->l != starting_depth) { parsing_error("unmatched '{'"); }
-
 
     free(confdata);
     free(stringStore);
