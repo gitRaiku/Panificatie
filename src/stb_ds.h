@@ -1,12 +1,10 @@
 /* stb_ds.h - v0.67 - public domain data structures - Sean Barrett 2019
 
    This is a single-header-file library that provides easy-to-use
-   dynamic arrays and hash tables for C (also works in C++).
 
    For a gentle introduction:
       http://nothings.org/stb_ds
 
-   To use this library, do this in *one* C or C++ file:
       #define STB_DS_IMPLEMENTATION
       #include "stb_ds.h"
 
@@ -55,8 +53,6 @@ COMPILE-TIME OPTIONS
 
      Defines a function stbds_unit_tests() that checks the functioning of the data structures.
 
-  Note that on older versions of gcc (e.g. 5.x.x) you may need to build with '-std=c++0x'
-     (or equivalentally '-std=c++11') when using anonymous structures as seen on the web
      page or in STBDS_UNIT_TESTS.
 
 LICENSE
@@ -337,7 +333,6 @@ NOTES - HASH MAP
   * For compilers other than GCC and clang (e.g. Visual Studio), for hmput/hmget/hmdel
     and variants, the key must be an lvalue (so the macro can take the address of it).
     Extensions are used that eliminate this requirement if you're using C99 and later
-    in GCC or clang, or if you're using C++ in GCC. But note that this can make your
     code less portable.
 
   * To test for presence of a key in a hashmap, just do 'hmgeti(foo,key) >= 0'.
@@ -689,7 +684,6 @@ enum
 
 #ifdef __cplusplus
 // in C we use implicit assignment from these void*-returning functions to T*.
-// in C++ these templates make the same code work
 template<class T> static T * stbds_arrgrowf_wrapper(T *a, size_t elemsize, size_t addlen, size_t min_cap) {
   return (T*)stbds_arrgrowf((void *)a, elemsize, addlen, min_cap);
 }
@@ -1648,7 +1642,6 @@ char *strkey(int n)
 void stbds_unit_tests(void)
 {
 #if defined(_MSC_VER) && _MSC_VER <= 1200 && defined(__cplusplus)
-  // VC6 C++ doesn't like the template<> trick on unnamed structures, so do nothing!
   STBDS_ASSERT(0);
 #else
   const int testsize = 100000;
@@ -1893,3 +1886,12 @@ ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ------------------------------------------------------------------------------
 */
+/* vim: set filetype=Java */
+/* -*- mode: Java; -*- */
+/* -*- Java -*- */
+vim: syntax=Java
+vim: set syntax=Java:
+vim: set filetype=Java:
+vim: set ft=Java:
+-*- mode: Java; -*-
+-*- Java -*-

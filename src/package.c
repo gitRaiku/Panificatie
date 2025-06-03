@@ -84,10 +84,10 @@ void init_packagedb() {
 void transflag_pacman() { // Pacman supports trans rights
   EALPM(alpm_trans_init(alpm, ALPM_TRANS_FLAG_DOWNLOADONLY | ALPM_TRANS_FLAG_NEEDED), "Could not init alpm transaction")
   alpmforeach(requiredPackages, pkg) { EALPM(alpm_add_pkg(alpm, pkg->data), "Could not add package %s to the transaction", alpm_pkg_get_name(pkg->data)); }
-  alpm_list_t *depmissing;
-  if (alpm_trans_prepare(alpm, &depmissing) < 0) {
-    alpmforeach(depmissing, dep) {
-      fprintf(stderr, "Could not complete pacman transaction: [target:%s] [depend:%s] [causingpkg:%s]!\n",  /// TODO: Cleanup
+  alpm_list_t *errlist;
+  if (alpm_trans_prepare(alpm, &errlist) < 0) {
+    alpmforeach(errlist, dep) {
+      fprintf(stderr, "Could not prepare the pacman transaction: [target:%s] [depend:%s] [causingpkg:%s]!\n",  /// TODO: Cleanup
           ((alpm_depmissing_t*)dep->data)->target,
           ((alpm_depmissing_t*)dep->data)->depend->name,
           ((alpm_depmissing_t*)dep->data)->causingpkg
@@ -95,6 +95,17 @@ void transflag_pacman() { // Pacman supports trans rights
     }
     exit(1);
   }
+  if (alpm_trans_commit(alpm, &errlist) < 0) {
+    alpmforeach(errlist, err) {
+      fprintf(stderr, "Could not commit the pacman transaction: [target:%s] [type:%u] [file:%s] [ctarget:%s]!\n",  /// TODO: Cleanup
+          ((alpm_fileconflict_t*)err->data)->target,
+          ((alpm_fileconflict_t*)err->data)->type,
+          ((alpm_fileconflict_t*)err->data)->file,
+          ((alpm_fileconflict_t*)err->data)->ctarget);
+    }
+    exit(1);
+  }
+
 
   
 
@@ -111,8 +122,6 @@ void transflag_pacman() { // Pacman supports trans rights
        int alpm_trans_prepare (alpm_handle_t *handle, alpm_list_t
            **data)
            Prepare a transaction.
-       int alpm_trans_commit (alpm_handle_t *handle, alpm_list_t
-           **data)
            Commit a transaction.
        int alpm_trans_interrupt (alpm_handle_t *handle)
            Interrupt a transaction.
