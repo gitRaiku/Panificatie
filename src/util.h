@@ -29,6 +29,6 @@
 #define svecforeach(_v, type, ret) for (type *ret = (_v); ret != (type*)(_v) + VEC_LEN(_v); ++ret)
 #define alpmforeach(_list, res) for (alpm_list_t *res = (_list); res; res = res->next) 
 
-DEF_VEC(char *, strv);
+DEF_VEC(char *, strv)
 
 #endif

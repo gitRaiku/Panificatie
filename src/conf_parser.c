@@ -134,7 +134,7 @@ void lex_ascend() {
   --statev->l;
 }
 
-#define safestrcat(dst, src) { int32_t _sl = VEC_LEN(dst) - strlen(dst) - 1; if (strlen(src) >= _sl) { char a[256]; snprintf(a, 256, "Token \"%s\" too long, truncating to 128-characters\n", src); parsing_warning(a); } strncat(dst, src, _sl); }
+#define safestrcat(dst, src) { size_t _sl = VEC_LEN(dst) - strlen(dst) - 1; if (strlen(src) >= _sl) { char a[256]; snprintf(a, 256, "Token \"%s\" too long, truncating to 128-characters\n", src); parsing_warning(a); } strncat(dst, src, _sl); }
 void process_token() {
   //print_token(lex); return;
   switch (lex->token) {
@@ -178,7 +178,7 @@ void parse_file(char *fname) {
     uint32_t clen;
     char *confdata = readfile(curfile, &clen);
     char *stringStore = malloc(clen);
-    int32_t starting_depth = statev->l;
+    uint32_t starting_depth = statev->l;
 
     stb_lexer clex;
     stb_c_lexer_init(&clex, confdata, confdata+clen, stringStore, clen);
@@ -201,7 +201,7 @@ void parse_file(char *fname) {
 
 
 struct panix_config *parse_config(char *fname) {
-  pc = calloc(sizeof(struct panix_config), 1);
+  pc = calloc(1, sizeof(struct panix_config));
   veci(strv, pc->pacmanPkgs);
   veci(lexstatev, statev);
   curfile = NULL;

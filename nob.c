@@ -17,7 +17,9 @@ time_t __attribute((pure)) max(time_t o1, time_t o2) { return o1 > o2 ? o1 : o2;
 #define IMAX(a, b) { (a) = max(a, b); }
 
 const char *CCFLAGS[] = { 
-  "-Wall", "-Og", "-ggdb3",
+  "-Wall", "-Wextra", // "-Wpedantic", 
+  "-Wno-variadic-macros",
+  "-Og", "-ggdb3",
   "-lalpm", "-D_FILE_OFFSET_BITS=64", // ??????????? Be able to write files bigger than 2Gb?? Idk
 };
 
