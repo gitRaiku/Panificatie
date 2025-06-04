@@ -7,6 +7,7 @@
 
 enum packageType {
   PKG_ALPM,
+  PKG_ALPM_FIXED,
   PKG_AUR,
   PKG_GIT,
   PKG_CUSTOM

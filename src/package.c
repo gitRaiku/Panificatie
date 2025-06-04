@@ -3,6 +3,9 @@
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
 
+#define NOB_IMPLEMENTATION
+#include "../nob.h"
+
 alpm_handle_t *alpm;
 alpm_list_t *dblist;
 
@@ -35,7 +38,6 @@ void db_insert_pkg(alpm_pkg_t *pkg) {
 }
 
 void alpm_log_callback(void *ctx, alpm_loglevel_t level, const char *fmt, va_list args) {
-  return;
   char logf[256];
   snprintf(logf, 256, "Log: %u %s", level, fmt);
   vfprintf(stdout, logf, args);
@@ -65,117 +67,6 @@ void alpm_download_callback(void *ctx, const char *filename, alpm_download_event
   }
 }
 
-///**
-// * Type of question.
-// * Unlike the events or progress enumerations, this enum has bitmask values
-// * so a frontend can use a bitmask map to supply preselected answers to the
-// * different types of questions.
-// */
-//typedef enum _alpm_question_type_t {
-//	/** Should target in ignorepkg be installed anyway? */
-//	ALPM_QUESTION_INSTALL_IGNOREPKG = (1 << 0),
-//	/** Should a package be replaced? */
-//	ALPM_QUESTION_REPLACE_PKG = (1 << 1),
-//	/** Should a conflicting package be removed? */
-//	ALPM_QUESTION_CONFLICT_PKG = (1 << 2),
-//	/** Should a corrupted package be deleted? */
-//	ALPM_QUESTION_CORRUPTED_PKG = (1 << 3),
-//	/** Should unresolvable targets be removed from the transaction? */
-//	ALPM_QUESTION_REMOVE_PKGS = (1 << 4),
-//	/** Provider selection */
-//	ALPM_QUESTION_SELECT_PROVIDER = (1 << 5),
-//	/** Should a key be imported? */
-//	ALPM_QUESTION_IMPORT_KEY = (1 << 6)
-//} alpm_question_type_t;
-//
-///** A question that can represent any other question. */
-//typedef struct _alpm_question_any_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer */
-//	int answer;
-//} alpm_question_any_t;
-//
-///** Should target in ignorepkg be installed anyway? */
-//typedef struct _alpm_question_install_ignorepkg_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer: whether or not to install pkg anyway */
-//	int install;
-//	/** The ignored package that we are deciding whether to install */
-//	alpm_pkg_t *pkg;
-//} alpm_question_install_ignorepkg_t;
-//
-///** Should a package be replaced? */
-//typedef struct _alpm_question_replace_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer: whether or not to replace oldpkg with newpkg */
-//	int replace;
-//	/** Package to be replaced */
-//	alpm_pkg_t *oldpkg;
-//	/** Package to replace with.*/
-//	alpm_pkg_t *newpkg;
-//	/** DB of newpkg */
-//	alpm_db_t *newdb;
-//} alpm_question_replace_t;
-//
-///** Should a conflicting package be removed? */
-//typedef struct _alpm_question_conflict_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer: whether or not to remove conflict->package2 */
-//	int remove;
-//	/** Conflict info */
-//	alpm_conflict_t *conflict;
-//} alpm_question_conflict_t;
-//
-///** Should a corrupted package be deleted? */
-//typedef struct _alpm_question_corrupted_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer: whether or not to remove filepath */
-//	int remove;
-//	/** File to remove */
-//	const char *filepath;
-//	/** Error code indicating the reason for package invalidity */
-//	alpm_errno_t reason;
-//} alpm_question_corrupted_t;
-//
-///** Should unresolvable targets be removed from the transaction? */
-//typedef struct _alpm_question_remove_pkgs_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer: whether or not to skip packages */
-//	int skip;
-//	/** List of alpm_pkg_t* with unresolved dependencies */
-//	alpm_list_t *packages;
-//} alpm_question_remove_pkgs_t;
-//
-///** Provider selection */
-//typedef struct _alpm_question_select_provider_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer: which provider to use (index from providers) */
-//	int use_index;
-//	/** List of alpm_pkg_t* as possible providers */
-//	alpm_list_t *providers;
-//	/** What providers provide for */
-//	alpm_depend_t *depend;
-//} alpm_question_select_provider_t;
-//
-///** Should a key be imported? */
-//typedef struct _alpm_question_import_key_t {
-//	/** Type of question */
-//	alpm_question_type_t type;
-//	/** Answer: whether or not to import key */
-//	int import;
-//	/** UID of the key to import */
-//	const char *uid;
-//	/** Fingerprint the key to import */
-//	const char *fingerprint;
-//} alpm_question_import_key_t;
-
 void alpm_question_callback(void *ctx, alpm_question_t *question) { /// TODO: Fill out excel spreadsheet
   fprintf(stdout, "Got question:\n");
   if (question->type & ALPM_QUESTION_INSTALL_IGNOREPKG) {
@@ -189,19 +80,17 @@ void alpm_question_callback(void *ctx, alpm_question_t *question) { /// TODO: Fi
   } else if (question->type & ALPM_QUESTION_REMOVE_PKGS) {
   fprintf(stdout, " REMOVE_PKGS");
   } else if (question->type & ALPM_QUESTION_SELECT_PROVIDER) {
-  alpm_question_select_provider_t *q = &question->select_provider;
-  fprintf(stdout, "Multiple Providers for %s!\n", q->depend->name);
-  int32_t ci = 1;
-  alpmforeach(q->providers, prov) { 
-    fprintf(stdout, "  %u) %s", ci++, alpm_pkg_get_name(prov->data));
-  }
-  int32_t cc = 1;
-  do {
-    fscanf(stdin, "%i", &cc);
-  } while (!(1 <= cc && cc <= ci));
-  q->use_index = cc;
-  
-
+    alpm_question_select_provider_t *q = &question->select_provider;
+    fprintf(stdout, "Multiple Providers for %s!\n", q->depend->name);
+    int32_t ci = 1;
+    alpmforeach(q->providers, prov) { 
+      fprintf(stdout, "  %u) %s", ci++, alpm_pkg_get_name(prov->data));
+    }
+    int32_t cc = 1;
+    do {
+      fscanf(stdin, "%i", &cc);
+    } while (!(1 <= cc && cc <= ci));
+    q->use_index = cc;
   } else if (question->type & ALPM_QUESTION_IMPORT_KEY) {
   fprintf(stdout, " IMPORT_KEY");
   }
@@ -216,22 +105,18 @@ void alpm_progress_callback(void *ctx, alpm_progress_t progress, const char *pkg
   fprintf(stdout, "Alpm progress: %u %s %u%% %lu/%lu\n", progress, pkg, percent, current, howmany);
 }
 
-
-
 void init_packagedb() {
   alpm_errno_t er = 0;
   alpm = alpm_initialize(ALPM_ROOT, ALPM_DBPATH, &er);
   ENEZ(er, "Could not initialize alpm %s", alpm_strerror(er));
 
   svecforeach(pacman_repositories, const char* const, repo) { 
-    fprintf(stdout, "Registering %s\n", *repo);
     alpm_register_syncdb(alpm, *repo, 0); 
   }
   dblist = alpm_get_syncdbs(alpm);
 
   alpmforeach(dblist, i) {
     svecforeach(pacman_mirrors, const char* const, mirror) { 
-      fprintf(stdout, "Adding mirror %s!\n", *mirror);
       alpm_db_add_server(i->data, *mirror);
     }
     alpmforeach(alpm_db_get_pkgcache(i->data), j) {
@@ -270,15 +155,40 @@ void require_package(char *pname, uint8_t firstRun) {
   alpm_pkg_t *pkg = find_package(pname, firstRun);
   if (pkg == NULL) { fprintf(stderr, "Could not find package %s, skipping!\n", pname); return; }
 
+  alpmforeach(alpm_pkg_get_provides(pkg), dep) {
+    size_t dl = shgeti(pkgdb, ((alpm_depend_t*)dep->data)->name);
+    if (pkgdb[dl].value->v[0].t == PKG_ALPM_FIXED) {
+      if (pkgdb[dl].value->v[0].d != pkg) {
+        fprintf(stderr, "Could not set %s as provider for %s as %s was already set!\n", 
+            pname, ((alpm_depend_t*)dep->data)->name, alpm_pkg_get_name(pkgdb[dl].value->v[0].d));
+        /// TODO: Fuck
+        exit(1);
+      }
+    } else {
+      fprintf(stdout, "Setting %s as provider for %s!\n", pname, ((alpm_depend_t*)dep->data)->name);
+      pkgdb[dl].value->l = 1;
+      pkgdb[dl].value->v[0] = (struct package){pkg, PKG_ALPM_FIXED};
+    }
+  }
+
+  alpmforeach(alpm_pkg_get_depends(pkg), dep) {
+    fprintf(stdout, "From %s -> %s\n", pname, ((alpm_depend_t*)dep->data)->name);
+    require_package(((alpm_depend_t*)dep->data)->name, firstRun);
+  }
+
   if (!firstRun) {
     requiredPackages = alpm_list_add(requiredPackages, pkg);
   }
 }
 
-#define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", alpm_strerror(alpm_errno(alpm)), ##args); alpm_trans_release(alpm); alpm_release(alpm); exit(1); }
+#define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", ##args, alpm_strerror(alpm_errno(alpm))); alpm_trans_release(alpm); alpm_release(alpm); exit(1); }
 void transflag_pacman() { // Pacman supports trans rights
-  EALPM(alpm_trans_init(alpm, /*ALPM_TRANS_FLAG_DOWNLOADONLY |*/ ALPM_TRANS_FLAG_NEEDED), "Could not init alpm transaction, are you running as root?"); // TODO: Make error messages better
-  alpmforeach(requiredPackages, pkg) { EALPM(alpm_add_pkg(alpm, pkg->data), "Could not add package %s to the transaction", alpm_pkg_get_name(pkg->data)); }
+                          // TODO: Fuck these :transgender_flag:s and fuck you
+  EALPM(alpm_trans_init(alpm, 0), "Could not init alpm transaction, are you running as root?"); // TODO: Make error messages better
+  alpmforeach(requiredPackages, pkg) { 
+    EALPM(alpm_add_pkg(alpm, pkg->data), "Could not add package %s to the transaction", alpm_pkg_get_name(pkg->data)); 
+  }
+
   alpm_list_t *errlist;
   if (alpm_trans_prepare(alpm, &errlist) < 0) {
     fprintf(stderr, "Could not prepare the pacman transaction: %s!\n", alpm_strerror(alpm_errno(alpm)));
@@ -293,6 +203,7 @@ void transflag_pacman() { // Pacman supports trans rights
     alpm_release(alpm);
     exit(1);
   }
+
   if (alpm_trans_commit(alpm, &errlist) < 0) {
     fprintf(stderr, "Could not commit the pacman transaction: %s!\n", alpm_strerror(alpm_errno(alpm)));
     alpmforeach(errlist, err) {
@@ -306,10 +217,12 @@ void transflag_pacman() { // Pacman supports trans rights
     alpm_release(alpm);
     exit(1);
   }
+
   EALPM(alpm_trans_release(alpm), "Could not release the pacman transaction!\n");
 }
 
 void install_pacman(struct strv *pkgs) {
+#ifdef ALPM_BACKEND
   vecforeach(pkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
   vecforeach(pkgs, char*, pname) { require_package(*pname, 0); } /// Providers for the same dependency
   alpmforeach(requiredPackages, pkg) {
@@ -325,7 +238,16 @@ void install_pacman(struct strv *pkgs) {
     exit(1);
   }
 
-  transflag_pacman();
+  //transflag_pacman();
+#else
+  Nob_Cmd cmd = {0};
+  nob_cmd_append(&cmd, "pacman", "-S");
+  vecforeach(pkgs, char*, pkg) {
+    nob_cmd_append(&cmd, *pkg);
+  }
+
+  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run pacman -S!\n"); exit(1); }
+#endif
 }
 
 void free_package(struct package *pkg) { 
