@@ -15,9 +15,7 @@ char *packages[] = {
 };
 
 struct depEntry *pkgdb = NULL;
-alpm_list_t *requiredPackages = NULL; /// I absolutely hate the fact searching in this is linear
-                                     /// But it shouldn't be an actual problem
-                                     /// (Especially when comparing speed with nix)
+struct pacEntry *requiredPackages = NULL;
 
 void db_push_pkg(const char *name, struct package pkg) {
   int gi = shgeti(pkgdb, name);
@@ -38,9 +36,11 @@ void db_insert_pkg(alpm_pkg_t *pkg) {
 }
 
 void alpm_log_callback(void *ctx, alpm_loglevel_t level, const char *fmt, va_list args) {
-  char logf[256];
-  snprintf(logf, 256, "Log: %u %s", level, fmt);
-  vfprintf(stdout, logf, args);
+  if (level < 6) {
+    char logf[256];
+    snprintf(logf, 256, "Log: %u %s", level, fmt);
+    vfprintf(stdout, logf, args);
+  }
 }
 
 void alpm_download_callback(void *ctx, const char *filename, alpm_download_event_type_t event, void *data) {
@@ -67,34 +67,8 @@ void alpm_download_callback(void *ctx, const char *filename, alpm_download_event
   }
 }
 
-void alpm_question_callback(void *ctx, alpm_question_t *question) { /// TODO: Fill out excel spreadsheet
-  fprintf(stdout, "Got question:\n");
-  if (question->type & ALPM_QUESTION_INSTALL_IGNOREPKG) {
-  fprintf(stdout, " INSTALL_IGNOREPKG");
-  } else if (question->type & ALPM_QUESTION_REPLACE_PKG) {
-  fprintf(stdout, " REPLACE_PKG");
-  } else if (question->type & ALPM_QUESTION_CONFLICT_PKG) {
-  fprintf(stdout, " CONFLICT_PKG");
-  } else if (question->type & ALPM_QUESTION_CORRUPTED_PKG) {
-  fprintf(stdout, " CORRUPTED_PKG");
-  } else if (question->type & ALPM_QUESTION_REMOVE_PKGS) {
-  fprintf(stdout, " REMOVE_PKGS");
-  } else if (question->type & ALPM_QUESTION_SELECT_PROVIDER) {
-    alpm_question_select_provider_t *q = &question->select_provider;
-    fprintf(stdout, "Multiple Providers for %s!\n", q->depend->name);
-    int32_t ci = 1;
-    alpmforeach(q->providers, prov) { 
-      fprintf(stdout, "  %u) %s", ci++, alpm_pkg_get_name(prov->data));
-    }
-    int32_t cc = 1;
-    do {
-      fscanf(stdin, "%i", &cc);
-    } while (!(1 <= cc && cc <= ci));
-    q->use_index = cc;
-  } else if (question->type & ALPM_QUESTION_IMPORT_KEY) {
-  fprintf(stdout, " IMPORT_KEY");
-  }
-  fprintf(stdout, "\n");
+void alpm_question_callback(void *ctx, alpm_question_t *question) {
+  TODO("Print questions then die");
 }
 
 void alpm_event_callback(void *ctx, alpm_event_t *event) { /// TODO: Event cb
@@ -131,61 +105,95 @@ void init_packagedb() {
   alpm_option_set_questioncb(alpm, alpm_question_callback, NULL);
 }
 
-alpm_pkg_t *find_package(char *pname, uint8_t firstRun) {
-  if (shgeti(pkgdb, pname) >= 0) {
-    struct pkgv *cp = shget(pkgdb, pname);
-    if (cp->l > 1) { 
-      if (!firstRun) {
-        fprintf(stderr, "Package %s has multiple providers:", pname);
-        vecforeach(cp, struct package, pkg) { fprintf(stderr, " %s", alpm_pkg_get_name(pkg->d)); }
-        fprintf(stderr, "\nPlease pick one inside the configuration file!\n");
+uint8_t check_pkgv_type(struct pkgv *pv, enum packageType pt) {
+  vecforeach(pv, struct package, pkg) { if (pkg->t == pt) { return 1; } }
+  return 0;
+}
+
+void check_add_package(char *pname) {
+  struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
+  if (pv == NULL) { fprintf(stderr, "Could not find package %s, not good!\n", pname); exit(1); }
+  uint8_t noneSelected = 1;
+  vecforeach(pv, struct package, pkg) {
+    if (pkg->t == PKG_ALPM_FIXED) {
+      noneSelected = 0;
+      pkg->t = PKG_ALPM_ADDED;
+
+      shput(requiredPackages, pname, pkg->d);
+
+      alpmforeach(alpm_pkg_get_depends(pkg->d), dep) {
+        char *dn = ((alpm_depend_t*)dep->data)->name; 
+        if (strcmp(dn, pname)) { check_add_package(dn); }
       }
-      return NULL;
-    } else {
-      return cp->v[0].d;
-    }
-  } else {
-    return NULL;
+    } else if (pkg->t == PKG_ALPM_ADDED) { noneSelected = 0; }
+  }
+
+  if (noneSelected) { 
+    fprintf(stderr, "Package %s has multiple providers: please select one\n", pname);
+    uint32_t idx = 1; vecforeach(pv, struct package, pkg) { fprintf(stderr, "  %u) %s", idx++, alpm_pkg_get_name(pkg->d)); }
+    fprintf(stderr, "\n");
+    exit(1);
   }
 }
 
 /// TODO: Improve error checking and add it to all functions
-void require_package(char *pname, uint8_t firstRun) {
-  /// TODO: Handle replaces as well
-  alpm_pkg_t *pkg = find_package(pname, firstRun);
-  if (pkg == NULL) { fprintf(stderr, "Could not find package %s, skipping!\n", pname); return; }
+void require_package(char *pname, uint8_t base) {
+  struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
+  if (pv == NULL) { fprintf(stderr, "Could not find a provider for %s, not good!\n", pname); return; } /// TODO: List all missing packages
 
-  alpmforeach(alpm_pkg_get_provides(pkg), dep) {
-    size_t dl = shgeti(pkgdb, ((alpm_depend_t*)dep->data)->name);
-    if (pkgdb[dl].value->v[0].t == PKG_ALPM_FIXED) {
-      if (pkgdb[dl].value->v[0].d != pkg) {
-        fprintf(stderr, "Could not set %s as provider for %s as %s was already set!\n", 
-            pname, ((alpm_depend_t*)dep->data)->name, alpm_pkg_get_name(pkgdb[dl].value->v[0].d));
-        /// TODO: Fuck
-        exit(1);
+  struct package *p;
+
+  if (base) { /// Forcefully include package pname
+    vecforeach(pv, struct package, pkg) {
+      if (!strcmp(alpm_pkg_get_name(pkg->d), pname)) {
+        p = pkg;
+        goto rq_add_provides;
       }
-    } else {
-      fprintf(stdout, "Setting %s as provider for %s!\n", pname, ((alpm_depend_t*)dep->data)->name);
-      pkgdb[dl].value->l = 1;
-      pkgdb[dl].value->v[0] = (struct package){pkg, PKG_ALPM_FIXED};
+    }
+    fprintf(stderr, "Could not find a package with name %s, however these packages provide it\n", pname);
+    uint32_t i = 1;
+    vecforeach(pv, struct package, pkg) { fprintf(stderr, "  %u) %s", i++, alpm_pkg_get_name(pkg->d)); }
+    fprintf(stderr, "\n");
+    exit(1);
+  }
+
+  vecforeach(pv, struct package, pkg) { if (pkg->t == PKG_ALPM_FIXED) { return; } } /// At least one provider was included
+  
+  /// TODO: Add config flag to automatically add package if the dependency name is
+  ///     : the same as the package name, as i think this is what pacman does
+  if (pv->l > 1) { 
+    vecforeach(pv, struct package, pkg) {
+      if (!strcmp(alpm_pkg_get_name(pkg->d), pname)) {
+        p = pkg;
+        goto rq_add_provides;
+      }
+    }
+    return; /// No provider was selected and there are multiple choices
+  }
+
+  p = pv->v;
+rq_add_provides:;
+  if (p->t == PKG_ALPM_FIXED) { return; }
+  p->t = PKG_ALPM_FIXED;
+
+  alpmforeach(alpm_pkg_get_provides(p->d), dep) {
+    size_t dl = shgeti(pkgdb, ((alpm_depend_t*)dep->data)->name);
+    vecforeach(pkgdb[dl].value, struct package, pkg) {
+      if (pkg->d == p->d) { pkg->t = PKG_ALPM_FIXED; }
     }
   }
 
-  alpmforeach(alpm_pkg_get_depends(pkg), dep) {
-    fprintf(stdout, "From %s -> %s\n", pname, ((alpm_depend_t*)dep->data)->name);
-    require_package(((alpm_depend_t*)dep->data)->name, firstRun);
-  }
-
-  if (!firstRun) {
-    requiredPackages = alpm_list_add(requiredPackages, pkg);
+  alpmforeach(alpm_pkg_get_depends(p->d), dep) {
+    char *dn = ((alpm_depend_t*)dep->data)->name; 
+    if (strcmp(dn, pname)) { require_package(dn, 0); }
   }
 }
 
 #define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", ##args, alpm_strerror(alpm_errno(alpm))); alpm_trans_release(alpm); alpm_release(alpm); exit(1); }
-void transflag_pacman() { // Pacman supports trans rights
+void transflag_pacman(alpm_list_t *alpmPackages) { // Pacman supports trans rights
                           // TODO: Fuck these :transgender_flag:s and fuck you
   EALPM(alpm_trans_init(alpm, 0), "Could not init alpm transaction, are you running as root?"); // TODO: Make error messages better
-  alpmforeach(requiredPackages, pkg) { 
+  alpmforeach(alpmPackages, pkg) { 
     EALPM(alpm_add_pkg(alpm, pkg->data), "Could not add package %s to the transaction", alpm_pkg_get_name(pkg->data)); 
   }
 
@@ -221,16 +229,27 @@ void transflag_pacman() { // Pacman supports trans rights
   EALPM(alpm_trans_release(alpm), "Could not release the pacman transaction!\n");
 }
 
+void get_installed_packages() {
+  alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) {
+    fprintf(stdout, "Local: %s\n", alpm_pkg_get_name(pkg->data));
+  }
+}
+
 void install_pacman(struct strv *pkgs) {
-#ifdef ALPM_BACKEND
+  get_installed_packages(); 
   vecforeach(pkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
-  vecforeach(pkgs, char*, pname) { require_package(*pname, 0); } /// Providers for the same dependency
-  alpmforeach(requiredPackages, pkg) {
+  vecforeach(pkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
+
+  return;
+  alpm_list_t *alpmPackages = NULL;
+  size_t plen = shlenu(requiredPackages);
+  for(size_t i = 0; i < plen; ++i) { alpmPackages = alpm_list_add(alpmPackages, requiredPackages[i].value); }
+
+  alpmforeach(alpmPackages, pkg) {
     fprintf(stdout, "Final package: %s\n", alpm_pkg_get_name(((alpm_pkg_t*)pkg->data)));
   }
-  alpm_list_t *conflicts = alpm_checkconflicts(alpm, requiredPackages);
+  alpm_list_t *conflicts = alpm_checkconflicts(alpm, alpmPackages);
   alpmforeach(conflicts, conf) { /// TODO: Print conflict waterfall
-                                 /// TODO: Deps are also checked in transaction, maybe better errors there
     fprintf(stderr, "Package %s conflicts with %s due to [%s]! Aborting!\n", 
         alpm_pkg_get_name(((alpm_conflict_t*)conf->data)->package1),
         alpm_pkg_get_name(((alpm_conflict_t*)conf->data)->package2),
@@ -238,16 +257,10 @@ void install_pacman(struct strv *pkgs) {
     exit(1);
   }
 
-  //transflag_pacman();
-#else
-  Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "pacman", "-S");
-  vecforeach(pkgs, char*, pkg) {
-    nob_cmd_append(&cmd, *pkg);
-  }
+  alpm_list_free(alpmPackages); return;
 
-  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run pacman -S!\n"); exit(1); }
-#endif
+  transflag_pacman(alpmPackages);
+  alpm_list_free(alpmPackages);
 }
 
 void free_package(struct package *pkg) { 
@@ -263,6 +276,7 @@ void free_packagedb() {
     vecfree(pkgdb[i].value);
   }
 
+  shfree(requiredPackages);
   shfree(pkgdb);
   ENEG(alpm_release(alpm), "Could not release alpm!");
 }

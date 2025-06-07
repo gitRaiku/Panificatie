@@ -8,6 +8,7 @@
 enum packageType {
   PKG_ALPM,
   PKG_ALPM_FIXED,
+  PKG_ALPM_ADDED,
   PKG_AUR,
   PKG_GIT,
   PKG_CUSTOM
@@ -21,7 +22,7 @@ struct package {
 DEF_VEC(struct package, pkgv);
 
 struct depEntry { char *key; struct pkgv *value; };
-struct pacEntry { alpm_pkg_t *key; uint8_t value; };
+struct pacEntry { char *key; alpm_pkg_t *value; };
 
 void install_pacman(struct strv *pkgs);
 

@@ -13,8 +13,5 @@ static const char *const pacman_mirrors[] = {
   "http://archlinux.mirrors.linux.ro/core/os/x86_64/",
   "http://archlinux.mirrors.linux.ro/multilib/os/x86_64/" }; /// TODO: Read these parameters from a config file
 
-/// Define this to use the alpm backend instead of being a wrapper around pacman
-// #define ALPM_BACKEND
-
 #endif
 
