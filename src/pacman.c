@@ -1,4 +1,4 @@
-#include "package.h"
+#include "pacman.h"
 
 #define STB_DS_IMPLEMENTATION
 #include "stb_ds.h"
@@ -6,8 +6,12 @@
 #define NOB_IMPLEMENTATION
 #include "../nob.h"
 
+#define shforeach(shm, res) for (size_t sl__shm ##res = shlenu(shm), res = 0; res < sl__shm ##res; ++res)
+
 alpm_handle_t *alpm;
 alpm_list_t *dblist;
+
+struct pacEntry *installedPackages = NULL;
 
 struct depEntry *pkgdb = NULL;
 struct pacEntry *requiredPackages = NULL;
@@ -115,7 +119,7 @@ void check_add_package(char *pname) {
       noneSelected = 0;
       pkg->t = PKG_ALPM_ADDED;
 
-      shput(requiredPackages, pname, pkg->d);
+      shput(requiredPackages, alpm_pkg_get_name(pkg->d), pkg->d);
 
       alpmforeach(alpm_pkg_get_depends(pkg->d), dep) {
         char *dn = ((alpm_depend_t*)dep->data)->name; 
@@ -225,20 +229,49 @@ void transflag_pacman(alpm_list_t *alpmPackages) { // Pacman supports trans righ
   EALPM(alpm_trans_release(alpm), "Could not release the pacman transaction!\n");
 }
 
-void get_installed_packages() {
-  alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) {
-    const char *pname = alpm_pkg_get_name(pkg->data);
-    if (shgeti(requiredPackages, pname) < 0) {
-      shput(removablePackages, pname, pkg->data);
-      fprintf(stdout, "Local extra: %s\n", pname);
+void get_removable_packages(struct strv *apkgs) {
+  shforeach(installedPackages, i) {
+    if (shgeti(requiredPackages, installedPackages[i].key) < 0) {
+      vecforeach(apkgs, char*, apkg) { if (!strcmp(installedPackages[i].key, *apkg)) { goto rp_fin; } }
+      shput(removablePackages, installedPackages[i].key, installedPackages[i].value);
     }
+    rp_fin:;
   }
 }
 
-void install_pacman(struct strv *pkgs) {
+void print_packages_status() {
+  size_t cl;
+  cl = shlenu(requiredPackages);
+  fprintf(stdout, "The following packages will remain installed\n");
+  for(size_t i = 0; i < cl; ++i) {
+    if (shgeti(installedPackages, requiredPackages[i].key) >= 0) {
+      fprintf(stdout, "%s ", requiredPackages[i].key);
+    }
+  }
+  fprintf(stdout, "\n\nThe following new packages will be installed\n");
+  for(size_t i = 0; i < cl; ++i) {
+    if (shgeti(installedPackages, requiredPackages[i].key) < 0) {
+      fprintf(stdout, "%s ", requiredPackages[i].key);
+    }
+  }
+  fprintf(stdout, "\n\nThe following packages will be uninstalled\n");
+  cl = shlenu(removablePackages);
+  for(size_t i = 0; i < cl; ++i) {
+    fprintf(stdout, "%s ", removablePackages[i].key);
+  }
+  fprintf(stdout, "\n");
+
+}
+
+void install_pacman(struct strv *pkgs, struct strv *apkgs) {
+  alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
+
   vecforeach(pkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
   vecforeach(pkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
-  get_installed_packages(); 
+
+  get_removable_packages(apkgs); 
+
+  print_packages_status();
 
   return;
   alpm_list_t *alpmPackages = NULL;

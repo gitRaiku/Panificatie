@@ -23,8 +23,9 @@ DEF_VEC(struct package, pkgv);
 
 struct depEntry { char *key; struct pkgv *value; };
 struct pacEntry { char *key; alpm_pkg_t *value; };
+struct strEntry { char *key; uint8_t value; };
 
-void install_pacman(struct strv *pkgs);
+void install_pacman(struct strv *pkgs, struct strv *apkgs);
 
 void init_packagedb();
 void free_packagedb();

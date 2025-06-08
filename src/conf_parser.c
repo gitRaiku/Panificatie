@@ -99,7 +99,8 @@ void parsing_warning(char *msg) {
 void lex_descend() {
   if (!strcmp(curstr, "pacman")) {
     vecp(statev, LEX_PACMAN);
-  } else if (!strcmp(curstr, "aur")) { TODO("Add AUR support"); 
+  } else if (!strcmp(curstr, "aur")) { 
+    vecp(statev, LEX_AUR);
   } else if (!strcmp(curstr, "git")) { TODO("Add GIT support"); 
   } else if (!strcmp(curstr, "config")) { TODO("Add CONFIG support"); 
   } else if (!strcmp(curstr, "include")) { 
@@ -115,11 +116,12 @@ void lex_next() {
   if (statev->l == 0) { char a[256]; snprintf(a, 256, "Expected a section keyword, got \"%s\" instead", curstr); parsing_error(a); }
   switch (statev->v[statev->l - 1]) {
     case LEX_PACMAN:
-      //fprintf(stdout, "Appending %s\n", curstr);
       vecp(pc->pacmanPkgs, strdup(curstr));
       break;
+    case LEX_AUR:
+      vecp(pc->aurPkgs, strdup(curstr));
+      break;
     case LEX_INCLUDE:
-      //fprintf(stdout, "Descending %s\n", curstr);
       parse_file(curstr);
       break;
     default:
@@ -136,15 +138,16 @@ void lex_ascend() {
 
 #define safestrcat(dst, src) { size_t _sl = VEC_LEN(dst) - strlen(dst) - 1; if (strlen(src) >= _sl) { char a[256]; snprintf(a, 256, "Token \"%s\" too long, truncating to 128-characters\n", src); parsing_warning(a); } strncat(dst, src, _sl); }
 void process_token() {
-  //print_token(lex); return;
+  static uint8_t ka = 0; // Keep Adding
+  //print_token(lex); fprintf(stdout, "\n");//return;
   switch (lex->token) {
     case CLEX_id        : /* passthrough */
     case CLEX_dqstring  : /* passthrough */
-    case CLEX_sqstring  : safestrcat(curstr, lex->string); break;
+    case CLEX_sqstring  : if (!ka) { lex_next(); curstr[0] = '\0'; } safestrcat(curstr, lex->string); ka = 0; break;
 
-    case '{'            : lex_descend(); curstr[0] = '\0'; break;
-    case '}'            : lex_ascend(); curstr[0] = '\0'; break;
-    case ','            : lex_next(); curstr[0] = '\0'; break;
+    case '{'            : ka = 0; lex_descend(); curstr[0] = '\0'; break;
+    case '}'            : ka = 0; lex_ascend(); curstr[0] = '\0'; break;
+    case ','            : ka = 0; lex_next(); curstr[0] = '\0'; break;
 
     default:
       if (0 <= lex->token && lex->token <= 255) {
@@ -152,6 +155,7 @@ void process_token() {
         if (csl >= VEC_LEN(curstr) - 1) { break; }
         curstr[csl] = lex->token;
         curstr[csl + 1] = '\0';
+        ka = 1;
       }
       break;
   }
@@ -203,11 +207,18 @@ void parse_file(char *fname) {
 struct panix_config *parse_config(char *fname) {
   pc = calloc(1, sizeof(struct panix_config));
   veci(strv, pc->pacmanPkgs);
+  veci(strv, pc->aurPkgs);
   veci(lexstatev, statev);
   curfile = NULL;
   lex = NULL;
 
   parse_file(fname);
+
+  fprintf(stdout, "Pacman packages:\n");
+  vecforeach(pc->pacmanPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
+  fprintf(stdout, "\nAur packages:\n");
+  vecforeach(pc->aurPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
+  fprintf(stdout, "\n");
 
   vecfree(statev);
   return pc;
@@ -215,6 +226,8 @@ struct panix_config *parse_config(char *fname) {
 
 void free_config(struct panix_config *pc) {
   vecforeach(pc->pacmanPkgs, char *, pkg) { free(*pkg); }
+  vecforeach(pc->aurPkgs, char *, pkg) { free(*pkg); }
   vecfree(pc->pacmanPkgs);
+  vecfree(pc->aurPkgs);
   free(pc);
 }

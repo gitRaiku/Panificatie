@@ -16,6 +16,7 @@ struct panix_config *parse_config(char *fname);
 
 struct panix_config {
   struct strv *pacmanPkgs;
+  struct strv *aurPkgs;
 
   char curstr[128];
 };
