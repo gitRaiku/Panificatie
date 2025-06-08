@@ -9,13 +9,9 @@
 alpm_handle_t *alpm;
 alpm_list_t *dblist;
 
-char *packages[] = {
-  //"base", "base-devel", "fish", "neovim", "foot"
-  "tpm2-tss"
-};
-
 struct depEntry *pkgdb = NULL;
 struct pacEntry *requiredPackages = NULL;
+struct pacEntry *removablePackages = NULL;
 
 void db_push_pkg(const char *name, struct package pkg) {
   int gi = shgeti(pkgdb, name);
@@ -231,14 +227,18 @@ void transflag_pacman(alpm_list_t *alpmPackages) { // Pacman supports trans righ
 
 void get_installed_packages() {
   alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) {
-    fprintf(stdout, "Local: %s\n", alpm_pkg_get_name(pkg->data));
+    const char *pname = alpm_pkg_get_name(pkg->data);
+    if (shgeti(requiredPackages, pname) < 0) {
+      shput(removablePackages, pname, pkg->data);
+      fprintf(stdout, "Local extra: %s\n", pname);
+    }
   }
 }
 
 void install_pacman(struct strv *pkgs) {
-  get_installed_packages(); 
   vecforeach(pkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
   vecforeach(pkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
+  get_installed_packages(); 
 
   return;
   alpm_list_t *alpmPackages = NULL;
@@ -276,6 +276,7 @@ void free_packagedb() {
     vecfree(pkgdb[i].value);
   }
 
+  shfree(removablePackages);
   shfree(requiredPackages);
   shfree(pkgdb);
   ENEG(alpm_release(alpm), "Could not release alpm!");
