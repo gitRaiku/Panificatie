@@ -36,7 +36,7 @@ void db_insert_pkg(alpm_pkg_t *pkg) {
 }
 
 void alpm_log_callback(void *ctx, alpm_loglevel_t level, const char *fmt, va_list args) {
-  if (level < 6) {
+  if (level < 17) {
     char logf[256];
     snprintf(logf, 256, "Log: %u %s", level, fmt);
     vfprintf(stdout, logf, args);
@@ -68,7 +68,7 @@ void alpm_download_callback(void *ctx, const char *filename, alpm_download_event
 }
 
 void alpm_question_callback(void *ctx, alpm_question_t *question) {
-  TODO("Print questions then die");
+  //TODO("Print questions then die");
 }
 
 void alpm_event_callback(void *ctx, alpm_event_t *event) { /// TODO: Event cb
@@ -83,6 +83,9 @@ void init_packagedb() {
   alpm_errno_t er = 0;
   alpm = alpm_initialize(ALPM_ROOT, ALPM_DBPATH, &er);
   ENEZ(er, "Could not initialize alpm %s", alpm_strerror(er));
+
+  alpm_list_t *cachedirs = alpm_list_add(NULL, ALPM_CACHEPATH);
+  ENEZ(alpm_option_set_cachedirs(alpm, cachedirs));
 
   svecforeach(pacman_repositories, const char* const, repo) { 
     alpm_register_syncdb(alpm, *repo, 0); 
@@ -189,11 +192,14 @@ rq_add_provides:;
   }
 }
 
-#define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", ##args, alpm_strerror(alpm_errno(alpm))); alpm_trans_release(alpm); alpm_release(alpm); exit(1); }
-void transflag_pacman(alpm_list_t *alpmPackages) { // Pacman supports trans rights
-                          // TODO: Fuck these :transgender_flag:s and fuck you
-  EALPM(alpm_trans_init(alpm, 0), "Could not init alpm transaction, are you running as root?"); // TODO: Make error messages better
+#define ALPMERR alpm_strerror(alpm_errno(alpm))
+#define ALPMCLEAN {alpm_trans_release(alpm); alpm_release(alpm);exit(1);}
+#define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", ##args, ALPMERR); ALPMCLEAN; }
+void pacman_trans(alpm_list_t *alpmPackages, uint32_t flags) { /// Pacman supports trans rights
+  EALPM(alpm_trans_init(alpm, 0), "Could not init alpm transaction, are you running as root?");
   alpmforeach(alpmPackages, pkg) { 
+    fprintf(stdout, "Adding %u %s %p\n", flags, alpm_pkg_get_name(pkg->data), pkg->data);
+    fflush(stdout);
     EALPM(alpm_add_pkg(alpm, pkg->data), "Could not add package %s to the transaction", alpm_pkg_get_name(pkg->data)); 
   }
 
@@ -207,11 +213,10 @@ void transflag_pacman(alpm_list_t *alpmPackages) { // Pacman supports trans righ
           ((alpm_depmissing_t*)dep->data)->causingpkg
           );
     }
-    alpm_trans_release(alpm);
-    alpm_release(alpm);
-    exit(1);
+    ALPMCLEAN;
   }
 
+  /*
   if (alpm_trans_commit(alpm, &errlist) < 0) {
     fprintf(stderr, "Could not commit the pacman transaction: %s!\n", alpm_strerror(alpm_errno(alpm)));
     alpmforeach(errlist, err) {
@@ -221,10 +226,8 @@ void transflag_pacman(alpm_list_t *alpmPackages) { // Pacman supports trans righ
           ((alpm_fileconflict_t*)err->data)->file,
           ((alpm_fileconflict_t*)err->data)->ctarget);
     }
-    alpm_trans_release(alpm);
-    alpm_release(alpm);
-    exit(1);
-  }
+    ALPMCLEAN;
+  }*/
 
   EALPM(alpm_trans_release(alpm), "Could not release the pacman transaction!\n");
 }
@@ -273,15 +276,13 @@ void install_pacman(struct strv *pkgs, struct strv *apkgs) {
 
   print_packages_status();
 
-  return;
-  alpm_list_t *alpmPackages = NULL;
-  size_t plen = shlenu(requiredPackages);
-  for(size_t i = 0; i < plen; ++i) { alpmPackages = alpm_list_add(alpmPackages, requiredPackages[i].value); }
+  alpm_list_t *insPackages = NULL;
+  shforeach(requiredPackages, i) { insPackages = alpm_list_add(insPackages, requiredPackages[i].value); }
 
-  alpmforeach(alpmPackages, pkg) {
-    fprintf(stdout, "Final package: %s\n", alpm_pkg_get_name(((alpm_pkg_t*)pkg->data)));
-  }
-  alpm_list_t *conflicts = alpm_checkconflicts(alpm, alpmPackages);
+  alpm_list_t *remPackages = NULL;
+  shforeach(removablePackages, i) { remPackages = alpm_list_add(remPackages, removablePackages[i].value); }
+
+  alpm_list_t *conflicts = alpm_checkconflicts(alpm, insPackages);
   alpmforeach(conflicts, conf) { /// TODO: Print conflict waterfall
     fprintf(stderr, "Package %s conflicts with %s due to [%s]! Aborting!\n", 
         alpm_pkg_get_name(((alpm_conflict_t*)conf->data)->package1),
@@ -290,10 +291,10 @@ void install_pacman(struct strv *pkgs, struct strv *apkgs) {
     exit(1);
   }
 
-  alpm_list_free(alpmPackages); return;
-
-  transflag_pacman(alpmPackages);
-  alpm_list_free(alpmPackages);
+  //pacman_trans(remPackages, ALPM_TRANS_FLAG_RECURSE | ALPM_TRANS_FLAG_CASCADE); /// Remove everything extra
+  pacman_trans(insPackages, 0 | ALPM_TRANS_FLAG_DOWNLOADONLY); /// Install everything needed
+  alpm_list_free(insPackages);
+  alpm_list_free(remPackages);
 }
 
 void free_package(struct package *pkg) { 

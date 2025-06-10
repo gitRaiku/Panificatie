@@ -5,7 +5,12 @@
 #define ALPM_DBPATH "/var/lib/pacman"
 #define ALPM_CACHEPATH "/var/cache/pacman/pkg/"
 #define PACMAN_CONF "/etc/pacman.conf"
+#define PACMAN_LOGFILE "/tmp/panificatie.log"
 #define CONFIG_PATH "./etc/panificatie.conf"
+#define  "./etc/panificatie.conf"
+
+#GPGDir      = /etc/pacman.d/gnupg/
+#HookDir     = /etc/pacman.d/hooks/
 
 static const char *const pacman_repositories[] = { "core", "extra", "multilib" };
 static const char *const pacman_mirrors[] = { 
