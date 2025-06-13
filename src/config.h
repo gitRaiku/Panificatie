@@ -7,10 +7,14 @@
 #define PACMAN_CONF "/etc/pacman.conf"
 #define PACMAN_LOGFILE "/tmp/panificatie.log"
 #define CONFIG_PATH "./etc/panificatie.conf"
-#define  "./etc/panificatie.conf"
 
-#GPGDir      = /etc/pacman.d/gnupg/
-#HookDir     = /etc/pacman.d/hooks/
+#define PANIFICATIE_CACHE "/var/cache/panificatie/"
+#define PANIFICATIE_CACHE_FILE "/var/cache/panificatie/dbs.cache"
+
+//#define  "./etc/panificatie.conf"
+
+//#GPGDir      = /etc/pacman.d/gnupg/
+//#HookDir     = /etc/pacman.d/hooks/
 
 static const char *const pacman_repositories[] = { "core", "extra", "multilib" };
 static const char *const pacman_mirrors[] = { 

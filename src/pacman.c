@@ -1,12 +1,9 @@
 #include "pacman.h"
 
-#define STB_DS_IMPLEMENTATION
-#include "stb_ds.h"
-
-#define NOB_IMPLEMENTATION
-#include "../nob.h"
-
 #define shforeach(shm, res) for (size_t sl__shm ##res = shlenu(shm), res = 0; res < sl__shm ##res; ++res)
+
+struct cenv *ce;
+void pacman_set_cenv(struct cenv *_ce) { ce = _ce; }
 
 alpm_handle_t *alpm;
 alpm_list_t *dblist;
@@ -16,6 +13,8 @@ struct pacEntry *installedPackages = NULL;
 struct depEntry *pkgdb = NULL;
 struct pacEntry *requiredPackages = NULL;
 struct pacEntry *removablePackages = NULL;
+
+struct pdbEntry *pdb = NULL;
 
 void db_push_pkg(const char *name, struct package pkg) {
   int gi = shgeti(pkgdb, name);
@@ -79,13 +78,13 @@ void alpm_progress_callback(void *ctx, alpm_progress_t progress, const char *pkg
   fprintf(stdout, "Alpm progress: %u %s %u%% %lu/%lu\n", progress, pkg, percent, current, howmany);
 }
 
-void init_packagedb() {
+void pacman_initdb() {
   alpm_errno_t er = 0;
   alpm = alpm_initialize(ALPM_ROOT, ALPM_DBPATH, &er);
   ENEZ(er, "Could not initialize alpm %s", alpm_strerror(er));
 
-  alpm_list_t *cachedirs = alpm_list_add(NULL, ALPM_CACHEPATH);
-  ENEZ(alpm_option_set_cachedirs(alpm, cachedirs));
+  //alpm_list_t *cachedirs = alpm_list_add(NULL, ALPM_CACHEPATH);
+  //ENEZ(alpm_option_set_cachedirs(alpm, cachedirs));
 
   svecforeach(pacman_repositories, const char* const, repo) { 
     alpm_register_syncdb(alpm, *repo, 0); 
@@ -101,11 +100,13 @@ void init_packagedb() {
     }
   }
 
-  alpm_option_set_logcb(alpm, alpm_log_callback, NULL);
+  //alpm_option_set_logcb(alpm, alpm_log_callback, NULL);
   alpm_option_set_dlcb(alpm, alpm_download_callback, NULL);
   alpm_option_set_eventcb(alpm, alpm_event_callback, NULL);
   alpm_option_set_progresscb(alpm, alpm_progress_callback, NULL);
   alpm_option_set_questioncb(alpm, alpm_question_callback, NULL);
+
+  // init_pdb(PANIFICATIE_CACHE_FILE);
 }
 
 uint8_t check_pkgv_type(struct pkgv *pv, enum packageType pt) {
@@ -263,18 +264,31 @@ void print_packages_status() {
     fprintf(stdout, "%s ", removablePackages[i].key);
   }
   fprintf(stdout, "\n");
-
 }
 
-void install_pacman(struct strv *pkgs, struct strv *apkgs) {
+void aur_tryget(char *pname) {
+  if (shgeti(ce->pdc->entries, pname) >= 0) {
+    fprintf(stdout, "Already have %s, skipping. TODO()!!\n", pname);
+    return;
+  }
+  
+  system("echo Hello");
+}
+
+void parse_apkgs() {
+  vecforeach(ce->pc->aurPkgs, char *, pkg) { aur_tryget(*pkg); }
+}
+
+void pacman_install() {
   alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
 
-  vecforeach(pkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
-  vecforeach(pkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
+  vecforeach(ce->pc->pacmanPkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
+  parse_apkgs();
+  vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
 
-  get_removable_packages(apkgs); 
+  get_removable_packages(ce->pc->aurPkgs); 
 
-  print_packages_status();
+  //print_packages_status();
 
   alpm_list_t *insPackages = NULL;
   shforeach(requiredPackages, i) { insPackages = alpm_list_add(insPackages, requiredPackages[i].value); }
@@ -292,7 +306,7 @@ void install_pacman(struct strv *pkgs, struct strv *apkgs) {
   }
 
   //pacman_trans(remPackages, ALPM_TRANS_FLAG_RECURSE | ALPM_TRANS_FLAG_CASCADE); /// Remove everything extra
-  pacman_trans(insPackages, 0 | ALPM_TRANS_FLAG_DOWNLOADONLY); /// Install everything needed
+  //pacman_trans(insPackages, 0 | ALPM_TRANS_FLAG_DOWNLOADONLY); /// Install everything needed
   alpm_list_free(insPackages);
   alpm_list_free(remPackages);
 }
@@ -303,7 +317,7 @@ void free_package(struct package *pkg) {
   }
 }
 
-void free_packagedb() {
+void pacman_freedb() {
   size_t np = shlenu(pkgdb);
   for(uint32_t i = 0; i < np; ++i) {
     vecforeach(pkgdb[i].value, struct package, pkg) { free_package(pkg); }

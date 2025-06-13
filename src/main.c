@@ -11,13 +11,18 @@
 #include "conf_parser.h"
 
 int main(void) {
-  init_packagedb();
-  struct panix_config *pc = parse_config(CONFIG_PATH);
+  struct cenv ce;
+  ce.pdc = conf_read_pdb(PANIFICATIE_CACHE_FILE);
+  ce.pc = conf_read_panix(CONFIG_PATH);
 
-  install_pacman(pc->pacmanPkgs, pc->aurPkgs);
+  pacman_set_cenv(&ce);
+
+  pacman_initdb();
+  pacman_install();
   
-  free_config(pc);
-  free_packagedb();
+  conf_free_pdb(ce.pdc);
+  conf_free_config(ce.pc);
+  pacman_freedb();
   return 0;
 }
 

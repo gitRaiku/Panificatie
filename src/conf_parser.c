@@ -2,8 +2,7 @@
 
 /* I hate this */
 
-#define STB_C_LEXER_IMPLEMENTATION
-#include "stb_c_lexer.h"
+#define shforeach(shm, res) for (size_t sl__shm ##res = shlenu(shm), res = 0; res < sl__shm ##res; ++res)
 
 void parse_file(char *fname);
 
@@ -78,7 +77,7 @@ enum LEX_STATE {
 DEF_VEC(enum LEX_STATE, lexstatev);
 struct lexstatev *statev;
 
-char curstr[128];
+char curstr[256];
 struct panix_config *pc;
 stb_lexer *lex;
 char *curfile;
@@ -106,14 +105,14 @@ void lex_descend() {
   } else if (!strcmp(curstr, "include")) { 
     vecp(statev, LEX_INCLUDE);
   } else {
-    char a[256]; snprintf(a, 256, "Expected a section keyword, got \"%s\" instead", curstr);
+    char a[512]; snprintf(a, 512, "Expected a section keyword, got \"%s\" instead", curstr);
     parsing_error(a);
   }
 }
 
 void lex_next() {
   if (curstr[0] == '\0') { return; }
-  if (statev->l == 0) { char a[256]; snprintf(a, 256, "Expected a section keyword, got \"%s\" instead", curstr); parsing_error(a); }
+  if (statev->l == 0) { char a[512]; snprintf(a, 512, "Expected a section keyword, got \"%s\" instead", curstr); parsing_error(a); }
   switch (statev->v[statev->l - 1]) {
     case LEX_PACMAN:
       vecp(pc->pacmanPkgs, strdup(curstr));
@@ -188,6 +187,7 @@ void parse_file(char *fname) {
     stb_c_lexer_init(&clex, confdata, confdata+clen, stringStore, clen);
     lex = &clex;
 
+    curstr[0] = '\0';
     while (stb_c_lexer_get_token(&clex)) {
       if (lex->token == CLEX_parse_error) { parsing_error("general parsing error"); }
       process_token();
@@ -203,8 +203,7 @@ void parse_file(char *fname) {
   lex = oldl;
 }
 
-
-struct panix_config *parse_config(char *fname) {
+struct panix_config *conf_read_panix(char *fname) {
   pc = calloc(1, sizeof(struct panix_config));
   veci(strv, pc->pacmanPkgs);
   veci(strv, pc->aurPkgs);
@@ -224,10 +223,42 @@ struct panix_config *parse_config(char *fname) {
   return pc;
 }
 
-void free_config(struct panix_config *pc) {
+void conf_free_config(struct panix_config *pc) {
   vecforeach(pc->pacmanPkgs, char *, pkg) { free(*pkg); }
   vecforeach(pc->aurPkgs, char *, pkg) { free(*pkg); }
   vecfree(pc->pacmanPkgs);
   vecfree(pc->aurPkgs);
+  free(pc);
+}
+
+struct pdb *conf_read_pdb(char *fname) {
+  struct pdb *pc = calloc(1, sizeof(struct pdb));
+
+  int32_t t = open(fname, O_RDONLY);
+  if (t < 0) { return pc; }
+  close(t);
+  uint32_t clen = 0;
+  char *f = readfile(fname, &clen);
+
+  char *ks = f;
+  char *vs = NULL;
+  for(uint32_t i = 0; i < clen; ++i) {
+    if (f[i] == '\n') {
+      f[i] = '\0';
+      if (ks != NULL && vs != NULL) { shput(pc->entries, strdup(ks), strdup(vs)); }
+      ks = f + i + 1;
+      vs = NULL;
+    }
+    if (f[i] == '=') { f[i] = '\0'; vs = f + i + 1; }
+  }
+  if (ks != NULL && vs != NULL) { shput(pc->entries, strdup(ks), strdup(vs)); }
+
+  free(f);
+  return pc;
+}
+
+void conf_free_pdb(struct pdb *pc) {
+  shforeach(pc->entries, i) { free(pc->entries[i].value); free(pc->entries[i].key); }
+  shfree(pc->entries);
   free(pc);
 }

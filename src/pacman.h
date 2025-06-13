@@ -3,7 +3,9 @@
 
 #include <alpm.h>
 #include "config.h"
+#include "conf_parser.h"
 #include "util.h"
+#include "stb_ds.h"
 
 enum packageType {
   PKG_ALPM,
@@ -23,12 +25,12 @@ DEF_VEC(struct package, pkgv);
 
 struct depEntry { char *key; struct pkgv *value; };
 struct pacEntry { char *key; alpm_pkg_t *value; };
-struct strEntry { char *key; uint8_t value; };
 
-void install_pacman(struct strv *pkgs, struct strv *apkgs);
+void pacman_set_cenv(struct cenv *_ce);
+void pacman_install();
 
-void init_packagedb();
-void free_packagedb();
+void pacman_initdb();
+void pacman_freedb();
 
 #endif
 
