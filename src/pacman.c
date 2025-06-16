@@ -233,10 +233,10 @@ void pacman_trans(alpm_list_t *alpmPackages, uint32_t flags) { /// Pacman suppor
   EALPM(alpm_trans_release(alpm), "Could not release the pacman transaction!\n");
 }
 
-void get_removable_packages(struct strv *apkgs) {
+void get_removable_packages() {
   shforeach(installedPackages, i) {
     if (shgeti(requiredPackages, installedPackages[i].key) < 0) {
-      vecforeach(apkgs, char*, apkg) { if (!strcmp(installedPackages[i].key, *apkg)) { goto rp_fin; } }
+      vecforeach(ce->pc->aurPkgs, char*, apkg) { if (!strcmp(installedPackages[i].key, *apkg)) { goto rp_fin; } }
       shput(removablePackages, installedPackages[i].key, installedPackages[i].value);
     }
     rp_fin:;
@@ -272,57 +272,86 @@ uint8_t aur_checkexists(char *path) {
   return 1;
 }
 
-int32_t aur_firstinstall(char *pname) {
-  if (!aur_checkexists(PANIFICATIE_CACHE)) {
-    fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
-    return 1;
-  }
-  char dlcmd[1024]; int32_t res;
-  snprintf(dlcmd, sizeof(dlcmd), "%s/%s/.SRCINFO", PANIFICATIE_CACHE, pname);
-  struct strEntry *se = conf_read_eq(dlcmd);
-  shforeach(se, i) { fprintf(stdout, "%s:", se[i].key); vecforeach(se[i].value, char*, str) { fprintf(stdout, " %s", *str); } fprintf(stdout, "\n"); }
-  conf_free_eq(se);
-  return 0;
 
-  snprintf(dlcmd, sizeof(dlcmd), "%s/%s", PANIFICATIE_CACHE, pname);
-  if (aur_checkexists(dlcmd)) {
-    fprintf(stderr, "Repository %s at %s already exists yet is not in the database, removing!\n", pname, dlcmd);
-    snprintf(dlcmd, sizeof(dlcmd), "echo rm -rf %s/%s", PANIFICATIE_CACHE, pname);
-    res = system(dlcmd);
-    if (res != 0) {
-      fprintf(stderr, "Could not run %s failed with %i!\n", dlcmd, res);
-      return 1;
-    }
+char _fbuf[1024]; int32_t _fres;
+#define ifm(...) (snprintf(_fbuf, sizeof(_fbuf), __VA_ARGS__),_fbuf)
+#define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0))
+#define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
+
+int32_t aur_require(char *pname);
+void aur_adddep(char *pname) {
+  if (shgeti(pkgdb, pname) >= 0) {
+    fprintf(stdout, "Adding dep from db %s!\n", pname);
+    require_package(pname, 0);
+  } else {
+    fprintf(stdout, "Adding dep from AUR %s!\n", pname);
+    aur_require(pname);
   }
-  snprintf(dlcmd, sizeof(dlcmd), "cd %s && git clone --depth=1 https://aur.archlinux.org/%s", PANIFICATIE_CACHE, pname);
-  res = system(dlcmd);
-  fprintf(stdout, "Running %s returns %i\n", dlcmd, res);
-  if (res != 0) {
-    fprintf(stderr, "Running %s failed with %i!\n", dlcmd, res);
-    snprintf(dlcmd, sizeof(dlcmd), "%s/%s", PANIFICATIE_CACHE, pname);
-    fprintf(stderr, "Removing %s!\n", dlcmd);
-    snprintf(dlcmd, sizeof(dlcmd), "echo rm -rf %s/%s", PANIFICATIE_CACHE, pname);
-    res = system(dlcmd);
-    if (res != 0) {
-      fprintf(stderr, "Could not run %s failed with %i!\n", dlcmd, res);
+}
+
+int32_t aur_add(char *pname) {
+  if (!aur_checkexists(aurpath(".SRCINFO"))) {
+    fprintf(stderr, "Could not find SRCINFO for %s at %s!\n", pname, _fbuf);
+    runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
+      fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres); return 1;
     }
+
     return 1;
   }
+
+  struct strEntry *se = conf_read_eq(aurpath(".SRCINFO"));
+
+  if (shgeti(se, "depends") >= 0) { struct strv *ce = shget(se, "depends"); vecforeach(ce, char*, str) { aur_adddep(*str); } }
+  if (shgeti(se, "makedepends") >= 0) { struct strv *ce = shget(se, "makedepends"); vecforeach(ce, char*, str) { aur_adddep(*str); } } /// TODO: Maybe not always require makedeps
+
+  conf_free_eq(se);
+
   return 0;
 }
 
-void aur_tryget(char *pname) {
-  if (shgeti(ce->pdc->entries, pname) >= 0) {
-    fprintf(stdout, "Already have %s, skipping. TODO()!!\n", pname);
-    return;
+int32_t aur_update(char *pname) {
+  runcmd("cd %s/aur_%s && git stash && git pull", PANIFICATIE_CACHE, pname) {
+    fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+    TODO("Handle this error");
   }
 
+  return aur_add(pname);
+}
 
-  aur_firstinstall(pname);
+int32_t aur_firstinstall(char *pname) {
+  if (aur_checkexists(aurpath("."))) {
+    fprintf(stderr, "Repository %s at %s already exists yet is not in the database, removing!\n", pname, _fbuf);
+    runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
+      fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres); return 1;
+    }
+  }
+
+  runcmd("cd %s && git clone --depth=1 https://aur.archlinux.org/%s aur_%s", PANIFICATIE_CACHE, pname, pname) {
+    fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+    fprintf(stderr, "Removing %s/%s!\n", PANIFICATIE_CACHE, pname);
+    runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
+      fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres);
+    }
+    return 1;
+  }
+  return aur_add(pname);
+}
+
+int32_t aur_require(char *pname) {
+  if (shgeti(ce->pdc->entries, pname) >= 0) { // TODO: Handle more specificity
+    return aur_update(pname);
+  } else {
+    return aur_firstinstall(pname);
+  }
 }
 
 void parse_apkgs() {
-  vecforeach(ce->pc->aurPkgs, char *, pkg) { aur_tryget(*pkg); }
+  if (!aur_checkexists(PANIFICATIE_CACHE)) {
+    fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
+    return;
+  }
+
+  vecforeach(ce->pc->aurPkgs, char *, pkg) { aur_require(*pkg); }
 }
 
 void pacman_install() {
@@ -332,7 +361,7 @@ void pacman_install() {
   parse_apkgs();
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
 
-  get_removable_packages(ce->pc->aurPkgs); 
+  get_removable_packages(); 
 
   //print_packages_status();
 
