@@ -266,13 +266,59 @@ void print_packages_status() {
   fprintf(stdout, "\n");
 }
 
+uint8_t aur_checkexists(char *path) {
+  struct stat s;
+  if (stat(path, &s) < 0) { return 0; }
+  return 1;
+}
+
+int32_t aur_firstinstall(char *pname) {
+  if (!aur_checkexists(PANIFICATIE_CACHE)) {
+    fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
+    return 1;
+  }
+  char dlcmd[1024]; int32_t res;
+  snprintf(dlcmd, sizeof(dlcmd), "%s/%s/.SRCINFO", PANIFICATIE_CACHE, pname);
+  struct strEntry *se = conf_read_eq(dlcmd);
+  shforeach(se, i) { fprintf(stdout, "%s:", se[i].key); vecforeach(se[i].value, char*, str) { fprintf(stdout, " %s", *str); } fprintf(stdout, "\n"); }
+  conf_free_eq(se);
+  return 0;
+
+  snprintf(dlcmd, sizeof(dlcmd), "%s/%s", PANIFICATIE_CACHE, pname);
+  if (aur_checkexists(dlcmd)) {
+    fprintf(stderr, "Repository %s at %s already exists yet is not in the database, removing!\n", pname, dlcmd);
+    snprintf(dlcmd, sizeof(dlcmd), "echo rm -rf %s/%s", PANIFICATIE_CACHE, pname);
+    res = system(dlcmd);
+    if (res != 0) {
+      fprintf(stderr, "Could not run %s failed with %i!\n", dlcmd, res);
+      return 1;
+    }
+  }
+  snprintf(dlcmd, sizeof(dlcmd), "cd %s && git clone --depth=1 https://aur.archlinux.org/%s", PANIFICATIE_CACHE, pname);
+  res = system(dlcmd);
+  fprintf(stdout, "Running %s returns %i\n", dlcmd, res);
+  if (res != 0) {
+    fprintf(stderr, "Running %s failed with %i!\n", dlcmd, res);
+    snprintf(dlcmd, sizeof(dlcmd), "%s/%s", PANIFICATIE_CACHE, pname);
+    fprintf(stderr, "Removing %s!\n", dlcmd);
+    snprintf(dlcmd, sizeof(dlcmd), "echo rm -rf %s/%s", PANIFICATIE_CACHE, pname);
+    res = system(dlcmd);
+    if (res != 0) {
+      fprintf(stderr, "Could not run %s failed with %i!\n", dlcmd, res);
+    }
+    return 1;
+  }
+  return 0;
+}
+
 void aur_tryget(char *pname) {
   if (shgeti(ce->pdc->entries, pname) >= 0) {
     fprintf(stdout, "Already have %s, skipping. TODO()!!\n", pname);
     return;
   }
-  
-  system("echo Hello");
+
+
+  aur_firstinstall(pname);
 }
 
 void parse_apkgs() {
@@ -325,6 +371,7 @@ void pacman_freedb() {
   }
 
   shfree(removablePackages);
+  shfree(installedPackages);
   shfree(requiredPackages);
   shfree(pkgdb);
   ENEG(alpm_release(alpm), "Could not release alpm!");

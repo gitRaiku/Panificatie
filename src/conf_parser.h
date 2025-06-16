@@ -8,6 +8,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <ctype.h>
 
 #include "config.h"
 #include "util.h"
@@ -25,6 +26,10 @@ struct panix_config {
 };
 
 void conf_free_config(struct panix_config *pc);
+
+struct strEntry { char *key; struct strv *value; }; /// TODO: Merge into one but
+struct strEntry *conf_read_eq(char *fname);         /// This code is already dumb 
+void conf_free_eq(struct strEntry *se);             /// Enough so i'll do it later
 
 struct pdbEntry { char *key; char *value; };
 struct pdb {

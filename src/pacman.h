@@ -2,6 +2,7 @@
 #define PACKAGE_H
 
 #include <alpm.h>
+#include <unistd.h>
 #include "config.h"
 #include "conf_parser.h"
 #include "util.h"

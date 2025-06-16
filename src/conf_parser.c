@@ -12,9 +12,10 @@ char *readfile(char *fname, uint32_t *len) {
   struct stat s;
   ENEG(fstat(fd, &s), "Could not stat \"%s\"!", fname);
   *len = s.st_size;
-  char *buf = malloc(*len);
+  char *buf = malloc(*len + 1);
   ENEG(read(fd, buf, *len), "Could not read \"%s\"!", fname);
   ENEG(close(fd), "Could not close \"%s\"!", fname);
+  buf[*len] = '\0';
   return buf;
 }
 
@@ -261,4 +262,73 @@ void conf_free_pdb(struct pdb *pc) {
   shforeach(pc->entries, i) { free(pc->entries[i].value); free(pc->entries[i].key); }
   shfree(pc->entries);
   free(pc);
+}
+
+char *trim_str(char *str) {
+  char *st = str;
+  while (*st != '\0' && isspace(*st)) { ++st; }
+  if (*st == '\0') { return st; }
+  char *ed = st;
+  while (*ed != '\0') { ++ed; }
+  --ed;
+  while (ed > st && isspace(*ed)) { --ed; }
+  ++ed;
+  *ed = '\0';
+  return st;
+}
+
+char *find_next(char *str, char c) {
+  while (*str != '\0' && *str != c) { ++str; }
+  if (*str == '\0') { return NULL; }
+  return str;
+}
+
+void add_line(struct strEntry **se, char *cl) {
+  char *ce = NULL;
+  ce = find_next(cl, '=');
+  if (ce == NULL) { return; } 
+  *ce = '\0';
+  cl = trim_str(cl);
+  ce = trim_str(ce + 1);
+  if (*cl != '\0' && *ce != '\0') {
+    if (shgeti(*se, cl) < 0) {
+      struct strv *si;
+      vecsi(strv, si);
+      vecp(si, strdup(ce));
+      shput(*se, strdup(cl), si);
+    } else {
+      struct strv *si = shget(*se, cl);
+      vecp(si, strdup(ce));
+    }
+  }
+}
+
+struct strEntry *conf_read_eq(char *fname) {
+  int32_t t = open(fname, O_RDONLY); if (t < 0) { return NULL; } close(t);
+
+  uint32_t clen = 0;
+  char *f = readfile(fname, &clen);
+  char *cl = f, *nl = NULL;
+
+  struct strEntry *se = NULL;
+
+  while ((nl = find_next(cl, '\n')) != NULL) {
+    if (*nl == '\0') { break; }
+    *nl = '\0';
+    add_line(&se, cl);
+    cl = nl + 1;
+  }
+  add_line(&se, cl);
+
+  free(f);
+  return se;
+}
+
+void conf_free_eq(struct strEntry *se) {
+  shforeach(se, i) { 
+    vecforeach(se[i].value, char*, str) { free(*str); }
+    vecfree(se[i].value);
+    free(se[i].key);
+  }
+  shfree(se);
 }
