@@ -403,9 +403,35 @@ void aur_makeall() {
   FILE *__restrict cacheFile = fopen(PANIFICATIE_CACHE_FILE, "w");
   ENULL(cacheFile, "Could not open %s", PANIFICATIE_CACHE_FILE);
   shforeach(ce->pdc->entries, i) {
-    fprintf(cacheFile, "%s = %s\n", ce->pdc->entries[i].key, ce->pdc->entries[i].value);
+    char *cc = ce->pdc->entries[i].value;
+    if (strlen(cc) > 2 && cc[0] == cc[1] && cc[1] == '%') {
+      fprintf(cacheFile, "%s = %s\n", ce->pdc->entries[i].key, ce->pdc->entries[i].value + 2); /// Get rid of the %% from marking it as built
+    }
   }
   fclose(cacheFile);
+}
+
+
+DEF_VEC(char, charv)
+
+void charv_addstr(struct charv *cv, const char *str) {
+  while (*str) { vecp(cv, *str); ++str; }
+}
+
+void pacman_paccmd(char *cmd, struct pacEntry *pkgs) {
+  struct charv *chv;
+  veci(charv, chv);
+  charv_addstr(chv, cmd);
+
+  shforeach(pkgs, i) { 
+    charv_addstr(chv, " ");
+    charv_addstr(chv, alpm_pkg_get_name(pkgs[i].value));
+  }
+  vecp(chv, '\0');
+
+  fprintf(stdout, "Cmd %s\n", chv->v);
+
+  vecfree(chv);
 }
 
 void pacman_install() {
@@ -422,9 +448,6 @@ void pacman_install() {
   alpm_list_t *insPackages = NULL;
   shforeach(requiredPackages, i) { insPackages = alpm_list_add(insPackages, requiredPackages[i].value); }
 
-  alpm_list_t *remPackages = NULL;
-  shforeach(removablePackages, i) { remPackages = alpm_list_add(remPackages, removablePackages[i].value); }
-
   alpm_list_t *conflicts = alpm_checkconflicts(alpm, insPackages);
   alpmforeach(conflicts, conf) { /// TODO: Print conflict waterfall
     fprintf(stderr, "Package %s conflicts with %s due to [%s]! Aborting!\n", 
@@ -434,11 +457,11 @@ void pacman_install() {
     exit(1);
   }
 
-  //pacman_trans(remPackages, ALPM_TRANS_FLAG_RECURSE | ALPM_TRANS_FLAG_CASCADE); /// Remove everything extra
-  //pacman_trans(insPackages, 0 | ALPM_TRANS_FLAG_DOWNLOADONLY); /// Install everything needed
-  aur_makeall();
   alpm_list_free(insPackages);
-  alpm_list_free(remPackages);
+
+  pacman_paccmd("pacman -Rns", removablePackages);
+  pacman_paccmd("pacman -S", requiredPackages);
+  aur_makeall();
 }
 
 void free_package(struct package *pkg) { 
