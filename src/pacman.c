@@ -13,6 +13,7 @@ struct pacEntry *installedPackages = NULL;
 struct depEntry *pkgdb = NULL;
 struct pacEntry *requiredPackages = NULL;
 struct pacEntry *removablePackages = NULL;
+struct strv *aurMakePkgs = NULL;
 
 struct pdbEntry *pdb = NULL;
 
@@ -99,6 +100,8 @@ void pacman_initdb() {
       db_insert_pkg(j->data);
     }
   }
+
+  veci(strv, aurMakePkgs);
 
   //alpm_option_set_logcb(alpm, alpm_log_callback, NULL);
   alpm_option_set_dlcb(alpm, alpm_download_callback, NULL);
@@ -299,7 +302,33 @@ int32_t aur_add(char *pname) {
     return 1;
   }
 
+  if (shgeti(ce->pdc->entries, pname) >= 0) {
+    char *cs = shget(ce->pdc->entries, pname);
+    if (strlen(cs) > 2 && cs[0] == cs[1] && cs[1] == '%') { return 0; } /// Marked as parsed
+  }
+
   struct strEntry *se = conf_read_eq(aurpath(".SRCINFO"));
+
+  if (shgeti(se, "pkgver") >= 0 && shgeti(se, "pkgrel") >= 0) { /// This is never to be optimized
+    char verstr[256] = {0};
+    char *pkgver = shget(se, "pkgver")->v[0];
+    char *pkgrel = shget(se, "pkgrel")->v[0];
+    strncpy(verstr, ifm("%s___%s", pkgver, pkgrel), sizeof(verstr));
+    if (shgeti(ce->pdc->entries, pname) >= 0) {
+      if (strcmp(shget(ce->pdc->entries, pname), verstr)) {
+        vecp(aurMakePkgs, strdup(pname));
+        free(shget(ce->pdc->entries, pname));
+        shput(ce->pdc->entries, pname, strdup(verstr));
+      }
+    } else { 
+      vecp(aurMakePkgs, pname);
+      shput(ce->pdc->entries, pname, strdup(verstr));
+    }
+    strncpy(verstr, ifm("%%%%%s", verstr), sizeof(verstr));
+    free(shget(ce->pdc->entries, pname));
+    shput(ce->pdc->entries, pname, strdup(verstr));
+  } else { return 1; }
+
 
   if (shgeti(se, "depends") >= 0) { struct strv *ce = shget(se, "depends"); vecforeach(ce, char*, str) { aur_adddep(*str); } }
   if (shgeti(se, "makedepends") >= 0) { struct strv *ce = shget(se, "makedepends"); vecforeach(ce, char*, str) { aur_adddep(*str); } } /// TODO: Maybe not always require makedeps
@@ -354,6 +383,31 @@ void parse_apkgs() {
   vecforeach(ce->pc->aurPkgs, char *, pkg) { aur_require(*pkg); }
 }
 
+void aur_make(char *pname) {
+  runcmd("cd %s/aur_%s && yes | makepkg -sci", PANIFICATIE_CACHE, pname) {
+    fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+    TODO("Handle this error");
+  }
+}
+
+void aur_makeall() {
+  if (!aur_checkexists(PANIFICATIE_CACHE)) {
+    fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
+    return;
+  }
+
+  vecforeach(aurMakePkgs, char*, pkg) {
+    aur_make(*pkg);
+  }
+
+  FILE *__restrict cacheFile = fopen(PANIFICATIE_CACHE_FILE, "w");
+  ENULL(cacheFile, "Could not open %s", PANIFICATIE_CACHE_FILE);
+  shforeach(ce->pdc->entries, i) {
+    fprintf(cacheFile, "%s = %s\n", ce->pdc->entries[i].key, ce->pdc->entries[i].value);
+  }
+  fclose(cacheFile);
+}
+
 void pacman_install() {
   alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
 
@@ -382,6 +436,7 @@ void pacman_install() {
 
   //pacman_trans(remPackages, ALPM_TRANS_FLAG_RECURSE | ALPM_TRANS_FLAG_CASCADE); /// Remove everything extra
   //pacman_trans(insPackages, 0 | ALPM_TRANS_FLAG_DOWNLOADONLY); /// Install everything needed
+  aur_makeall();
   alpm_list_free(insPackages);
   alpm_list_free(remPackages);
 }
@@ -399,6 +454,9 @@ void pacman_freedb() {
     vecfree(pkgdb[i].value);
   }
 
+  vecforeach(aurMakePkgs, char*, pkg) { free(*pkg); }
+  vecfree(aurMakePkgs);
+  
   shfree(removablePackages);
   shfree(installedPackages);
   shfree(requiredPackages);
