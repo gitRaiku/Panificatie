@@ -119,7 +119,12 @@ uint8_t check_pkgv_type(struct pkgv *pv, enum packageType pt) {
 
 void check_add_package(char *pname) {
   struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
-  if (pv == NULL) { fprintf(stderr, "Could not find package %s, not good!\n", pname); exit(1); }
+  if (pv == NULL) { 
+    alpm_list_t *grp = alpm_find_group_pkgs(dblist, pname);
+    alpmforeach(grp, pkg) { alpm_list_free(grp); return; }
+    alpm_list_free(grp); 
+    fprintf(stderr, "Could not find package %s, not good!\n", pname); exit(1); 
+  }
   uint8_t noneSelected = 1;
   vecforeach(pv, struct package, pkg) {
     if (pkg->t == PKG_ALPM_FIXED) {
@@ -144,9 +149,21 @@ void check_add_package(char *pname) {
 }
 
 /// TODO: Improve error checking and add it to all functions
-void require_package(char *pname, uint8_t base) {
+void require_package(const char *pname, uint8_t base) {
   struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
-  if (pv == NULL) { fprintf(stderr, "Could not find a provider for %s, not good!\n", pname); return; } /// TODO: List all missing packages
+  if (pv == NULL) { 
+    if (base) { /// Check maybe a group
+      alpm_list_t *grp = alpm_find_group_pkgs(dblist, pname);
+      alpmforeach(grp, pkg) {
+        fprintf(stdout, "Group %s -> %s\n", pname, alpm_pkg_get_name(pkg->data));
+        require_package(alpm_pkg_get_name(pkg->data), 0);
+      }
+      alpm_list_free(grp);
+    } else { /// TODO: List all missing packages
+      fprintf(stderr, "Could not find a provider for %s, not good!\n", pname); 
+    }
+    return; 
+  } 
 
   struct package *p;
 
@@ -318,11 +335,11 @@ int32_t aur_add(char *pname) {
       if (strcmp(shget(ce->pdc->entries, pname), verstr)) {
         vecp(aurMakePkgs, strdup(pname));
         free(shget(ce->pdc->entries, pname));
-        shput(ce->pdc->entries, pname, strdup(verstr));
+        shput(ce->pdc->entries, strdup(pname), strdup(verstr));
       }
     } else { 
-      vecp(aurMakePkgs, pname);
-      shput(ce->pdc->entries, pname, strdup(verstr));
+      vecp(aurMakePkgs, strdup(pname));
+      shput(ce->pdc->entries, strdup(pname), strdup(verstr));
     }
     strncpy(verstr, ifm("%%%%%s", verstr), sizeof(verstr));
     free(shget(ce->pdc->entries, pname));
@@ -339,10 +356,12 @@ int32_t aur_add(char *pname) {
 }
 
 int32_t aur_update(char *pname) {
+  /* TODO: Only update if update flag
   runcmd("cd %s/aur_%s && git stash && git pull", PANIFICATIE_CACHE, pname) {
     fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
     TODO("Handle this error");
   }
+  */
 
   return aur_add(pname);
 }
@@ -367,6 +386,13 @@ int32_t aur_firstinstall(char *pname) {
 }
 
 int32_t aur_require(char *pname) {
+  if (aur_checkexists(aurpath("."))) {
+    return aur_update(pname);
+  } else {
+    return aur_firstinstall(pname);
+  }
+
+
   if (shgeti(ce->pdc->entries, pname) >= 0) { // TODO: Handle more specificity
     return aur_update(pname);
   } else {
@@ -434,11 +460,11 @@ void pacman_paccmd(char *cmd, struct pacEntry *pkgs) {
   vecfree(chv);
 }
 
-void pacman_install() {
+void pacman_install() { /// TODO: Add support for package groups
   alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
 
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
-  parse_apkgs();
+  parse_apkgs(); /// TODO: Check conflicts in the added packages
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
 
   get_removable_packages(); 
@@ -459,9 +485,10 @@ void pacman_install() {
 
   alpm_list_free(insPackages);
 
-  pacman_paccmd("pacman -Rns", removablePackages);
-  pacman_paccmd("pacman -S", requiredPackages);
-  aur_makeall();
+  pacman_paccmd("sudo pacman -Rns", removablePackages);
+  // pacman_paccmd("sudo pacman -S", requiredPackages);
+  
+  //aur_makeall();
 }
 
 void free_package(struct package *pkg) { 

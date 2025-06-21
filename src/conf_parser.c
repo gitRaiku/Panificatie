@@ -225,18 +225,22 @@ struct panix_config *conf_read_panix(char *fname) {
 }
 
 void conf_free_config(struct panix_config *pc) {
-  vecforeach(pc->pacmanPkgs, char *, pkg) { free(*pkg); }
-  vecforeach(pc->aurPkgs, char *, pkg) { free(*pkg); }
+  vecforeach(pc->pacmanPkgs, char *, pkg) { 
+    free(*pkg); 
+  }
+  vecforeach(pc->aurPkgs, char *, pkg) { 
+    free(*pkg); 
+  }
   vecfree(pc->pacmanPkgs);
   vecfree(pc->aurPkgs);
   free(pc);
 }
 
 struct pdb *conf_read_pdb(char *fname) {
-  struct pdb *pc = calloc(1, sizeof(struct pdb));
+  struct pdb *pdc = calloc(1, sizeof(struct pdb));
 
   int32_t t = open(fname, O_RDONLY);
-  if (t < 0) { return pc; }
+  if (t < 0) { return pdc; }
   close(t);
   uint32_t clen = 0;
   char *f = readfile(fname, &clen);
@@ -246,22 +250,25 @@ struct pdb *conf_read_pdb(char *fname) {
   for(uint32_t i = 0; i < clen; ++i) {
     if (f[i] == '\n') {
       f[i] = '\0';
-      if (ks != NULL && vs != NULL) { shput(pc->entries, strdup(ks), strdup(vs)); }
+      if (ks != NULL && vs != NULL) { shput(pdc->entries, strdup(ks), strdup(vs)); }
       ks = f + i + 1;
       vs = NULL;
     }
     if (f[i] == '=') { f[i] = '\0'; vs = f + i + 1; }
   }
-  if (ks != NULL && vs != NULL) { shput(pc->entries, strdup(ks), strdup(vs)); }
+  if (ks != NULL && vs != NULL) { shput(pdc->entries, strdup(ks), strdup(vs)); }
 
   free(f);
-  return pc;
+  return pdc;
 }
 
-void conf_free_pdb(struct pdb *pc) {
-  shforeach(pc->entries, i) { free(pc->entries[i].value); free(pc->entries[i].key); }
-  shfree(pc->entries);
-  free(pc);
+void conf_free_pdb(struct pdb *pdc) {
+  shforeach(pdc->entries, i) { 
+    free(pdc->entries[i].value); 
+    free(pdc->entries[i].key); 
+  }
+  shfree(pdc->entries);
+  free(pdc);
 }
 
 char *trim_str(char *str) {

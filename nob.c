@@ -23,6 +23,8 @@ const char *CCFLAGS[] = {
   "-lalpm", "-D_FILE_OFFSET_BITS=64", // ??????????? Be able to write files bigger than 2Gb?? Idk
 };
 
+#define RUN_FILE "/home/raiku/panificatie/base.conf"
+
 void add_flags(Nob_Cmd *__restrict cmd) { int32_t i; for(i = 0; i < ARRAY_LEN(CCFLAGS); ++i) { nob_cmd_append(cmd, CCFLAGS[i]); } }
 
 struct strv *get_files(char *fname) {
@@ -104,19 +106,19 @@ void rebuild() {
 
 void run() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "./"TARGET);
+  nob_cmd_append(&cmd, "./"TARGET, "-c", RUN_FILE);
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
 }
 
 void debug() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "gdb", "-q", "./"TARGET);
+  nob_cmd_append(&cmd, "gdb", "-q", "--args", "./"TARGET, "-c", RUN_FILE);
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
 }
 
 void valgrind() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "valgrind", "--leak-check=full", "./"TARGET);
+  nob_cmd_append(&cmd, "valgrind", "--leak-check=full", "-s", "./"TARGET, "-c", RUN_FILE);
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not valgrind %s!\n", TARGET); exit(1); }
 }
 
