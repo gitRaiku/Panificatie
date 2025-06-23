@@ -23,6 +23,7 @@ struct package {
 };
 
 DEF_VEC(struct package, pkgv);
+DEF_VEC(alpm_pkg_t*, alpmpkgv);
 
 struct depEntry { char *key; struct pkgv *value; };
 struct pacEntry { char *key; alpm_pkg_t *value; };

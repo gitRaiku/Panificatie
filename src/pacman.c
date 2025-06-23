@@ -12,7 +12,9 @@ struct pacEntry *installedPackages = NULL;
 
 struct depEntry *pkgdb = NULL;
 struct pacEntry *requiredPackages = NULL;
+struct pacEntry *installablePackages = NULL;
 struct pacEntry *removablePackages = NULL;
+struct alpmpkgv *pacmanGroupPkgs = NULL;
 struct strv *aurMakePkgs = NULL;
 
 struct pdbEntry *pdb = NULL;
@@ -33,50 +35,6 @@ void db_insert_pkg(alpm_pkg_t *pkg) {
       db_push_pkg(((alpm_depend_t*)cp->data)->name, (struct package) {pkg, PKG_ALPM});
     }
   }
-}
-
-void alpm_log_callback(void *ctx, alpm_loglevel_t level, const char *fmt, va_list args) {
-  if (level < 17) {
-    char logf[256];
-    snprintf(logf, 256, "Log: %u %s", level, fmt);
-    vfprintf(stdout, logf, args);
-  }
-}
-
-void alpm_download_callback(void *ctx, const char *filename, alpm_download_event_type_t event, void *data) {
-  fprintf(stdout, "Download callback for %s: ", filename);
-  switch (event) {
-    case ALPM_DOWNLOAD_INIT:
-      fprintf(stdout, "Init [optional:%u]\n", 
-        ((alpm_download_event_init_t*)data)->optional);
-      break;
-    case ALPM_DOWNLOAD_PROGRESS:
-      fprintf(stdout, "Progress [downloaded:%li] [total:%li]\n", 
-        ((alpm_download_event_progress_t*)data)->downloaded,
-        ((alpm_download_event_progress_t*)data)->total);
-      break;
-    case ALPM_DOWNLOAD_RETRY:
-      fprintf(stdout, "Retry [resume:%u]\n", 
-        ((alpm_download_event_retry_t*)data)->resume);
-      break;
-    case ALPM_DOWNLOAD_COMPLETED:
-      fprintf(stdout, "Completed [total:%li] [result:%u]\n", 
-        ((alpm_download_event_completed_t*)data)->total,
-        ((alpm_download_event_completed_t*)data)->result);
-      break;
-  }
-}
-
-void alpm_question_callback(void *ctx, alpm_question_t *question) {
-  //TODO("Print questions then die");
-}
-
-void alpm_event_callback(void *ctx, alpm_event_t *event) { /// TODO: Event cb
-  fprintf(stdout, "Alpm event callback!\n");
-}
-
-void alpm_progress_callback(void *ctx, alpm_progress_t progress, const char *pkg, int percent, size_t howmany, size_t current) {
-  fprintf(stdout, "Alpm progress: %u %s %u%% %lu/%lu\n", progress, pkg, percent, current, howmany);
 }
 
 void pacman_initdb() {
@@ -102,14 +60,6 @@ void pacman_initdb() {
   }
 
   veci(strv, aurMakePkgs);
-
-  //alpm_option_set_logcb(alpm, alpm_log_callback, NULL);
-  alpm_option_set_dlcb(alpm, alpm_download_callback, NULL);
-  alpm_option_set_eventcb(alpm, alpm_event_callback, NULL);
-  alpm_option_set_progresscb(alpm, alpm_progress_callback, NULL);
-  alpm_option_set_questioncb(alpm, alpm_question_callback, NULL);
-
-  // init_pdb(PANIFICATIE_CACHE_FILE);
 }
 
 uint8_t check_pkgv_type(struct pkgv *pv, enum packageType pt) {
@@ -117,7 +67,7 @@ uint8_t check_pkgv_type(struct pkgv *pv, enum packageType pt) {
   return 0;
 }
 
-void check_add_package(char *pname) {
+void check_add_package(const char *pname) {
   struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
   if (pv == NULL) { 
     alpm_list_t *grp = alpm_find_group_pkgs(dblist, pname);
@@ -155,7 +105,7 @@ void require_package(const char *pname, uint8_t base) {
     if (base) { /// Check maybe a group
       alpm_list_t *grp = alpm_find_group_pkgs(dblist, pname);
       alpmforeach(grp, pkg) {
-        fprintf(stdout, "Group %s -> %s\n", pname, alpm_pkg_get_name(pkg->data));
+        vecp(pacmanGroupPkgs, pkg->data);
         require_package(alpm_pkg_get_name(pkg->data), 0);
       }
       alpm_list_free(grp);
@@ -199,6 +149,9 @@ void require_package(const char *pname, uint8_t base) {
 rq_add_provides:;
   if (p->t == PKG_ALPM_FIXED) { return; }
   p->t = PKG_ALPM_FIXED;
+  if (shgeti(requiredPackages, pname) <= 0) {
+    shput(requiredPackages, strdup(pname), p->d);
+  }
 
   alpmforeach(alpm_pkg_get_provides(p->d), dep) {
     size_t dl = shgeti(pkgdb, ((alpm_depend_t*)dep->data)->name);
@@ -213,53 +166,20 @@ rq_add_provides:;
   }
 }
 
-#define ALPMERR alpm_strerror(alpm_errno(alpm))
-#define ALPMCLEAN {alpm_trans_release(alpm); alpm_release(alpm);exit(1);}
-#define EALPM(cmd, res, args...) if ((cmd) < 0) { fprintf(stderr, res ": %s!\n", ##args, ALPMERR); ALPMCLEAN; }
-void pacman_trans(alpm_list_t *alpmPackages, uint32_t flags) { /// Pacman supports trans rights
-  EALPM(alpm_trans_init(alpm, 0), "Could not init alpm transaction, are you running as root?");
-  alpmforeach(alpmPackages, pkg) { 
-    fprintf(stdout, "Adding %u %s %p\n", flags, alpm_pkg_get_name(pkg->data), pkg->data);
-    fflush(stdout);
-    EALPM(alpm_add_pkg(alpm, pkg->data), "Could not add package %s to the transaction", alpm_pkg_get_name(pkg->data)); 
-  }
-
-  alpm_list_t *errlist;
-  if (alpm_trans_prepare(alpm, &errlist) < 0) {
-    fprintf(stderr, "Could not prepare the pacman transaction: %s!\n", alpm_strerror(alpm_errno(alpm)));
-    alpmforeach(errlist, dep) {
-      fprintf(stderr, "  [target:%s] [depend:%s] [causingpkg:%s]!\n",  /// TODO: Cleanup
-          ((alpm_depmissing_t*)dep->data)->target,
-          ((alpm_depmissing_t*)dep->data)->depend->name,
-          ((alpm_depmissing_t*)dep->data)->causingpkg
-          );
-    }
-    ALPMCLEAN;
-  }
-
-  /*
-  if (alpm_trans_commit(alpm, &errlist) < 0) {
-    fprintf(stderr, "Could not commit the pacman transaction: %s!\n", alpm_strerror(alpm_errno(alpm)));
-    alpmforeach(errlist, err) {
-      fprintf(stderr, "  fileconflict: [target:%s] [type:%u] [file:%s] [ctarget:%s]!\n",  /// TODO: Cleanup
-          ((alpm_fileconflict_t*)err->data)->target,
-          ((alpm_fileconflict_t*)err->data)->type,
-          ((alpm_fileconflict_t*)err->data)->file,
-          ((alpm_fileconflict_t*)err->data)->ctarget);
-    }
-    ALPMCLEAN;
-  }*/
-
-  EALPM(alpm_trans_release(alpm), "Could not release the pacman transaction!\n");
-}
-
-void get_removable_packages() {
+void get_installable_removable_packages() {
   shforeach(installedPackages, i) {
+    // if (alpm_pkg_get_reason(installedPackages[i].value) != ALPM_PKG_REASON_EXPLICIT) { continue ; } /// TODO: Make this a flag
     if (shgeti(requiredPackages, installedPackages[i].key) < 0) {
       vecforeach(ce->pc->aurPkgs, char*, apkg) { if (!strcmp(installedPackages[i].key, *apkg)) { goto rp_fin; } }
       shput(removablePackages, installedPackages[i].key, installedPackages[i].value);
     }
     rp_fin:;
+  }
+
+  shforeach(requiredPackages, i) {
+    if (shgeti(installedPackages, requiredPackages[i].key) < 0) {
+      shput(installablePackages, requiredPackages[i].key, requiredPackages[i].value);
+    }
   }
 }
 
@@ -299,12 +219,22 @@ char _fbuf[1024]; int32_t _fres;
 #define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
 
 int32_t aur_require(char *pname);
+
+char *str_find_next(char *str, char c) {
+  while (*str != '\0' && *str != c) { ++str; }
+  if (*str == '\0') { return NULL; }
+  return str;
+}
+
 void aur_adddep(char *pname) {
+  char *ns = NULL; /// Get rid of version specifiers TODO: Handle them
+  if ((ns = str_find_next(pname, '>')) != NULL) { *ns = '\0'; }
+  if ((ns = str_find_next(pname, '=')) != NULL) { *ns = '\0'; }
   if (shgeti(pkgdb, pname) >= 0) {
-    fprintf(stdout, "Adding dep from db %s!\n", pname);
+    //fprintf(stdout, "Adding dep from db %s!\n", pname);
     require_package(pname, 0);
   } else {
-    fprintf(stdout, "Adding dep from AUR %s!\n", pname);
+    //fprintf(stdout, "Adding dep from AUR %s!\n", pname);
     aur_require(pname);
   }
 }
@@ -347,8 +277,20 @@ int32_t aur_add(char *pname) {
   } else { return 1; }
 
 
-  if (shgeti(se, "depends") >= 0) { struct strv *ce = shget(se, "depends"); vecforeach(ce, char*, str) { aur_adddep(*str); } }
-  if (shgeti(se, "makedepends") >= 0) { struct strv *ce = shget(se, "makedepends"); vecforeach(ce, char*, str) { aur_adddep(*str); } } /// TODO: Maybe not always require makedeps
+  if (shgeti(se, "depends") >= 0) { 
+    struct strv *ce = shget(se, "depends"); 
+    vecforeach(ce, char*, str) { 
+      fprintf(stdout, "Adding dep %s -> %s\n", pname, *str);
+      aur_adddep(*str); 
+    } 
+  }
+  if (shgeti(se, "makedepends") >= 0) { 
+    struct strv *ce = shget(se, "makedepends"); 
+    vecforeach(ce, char*, str) { 
+      fprintf(stdout, "Adding makedep %s -> %s\n", pname, *str);
+      aur_adddep(*str); 
+    } 
+  } /// TODO: Maybe not always require makedeps
 
   conf_free_eq(se);
 
@@ -409,11 +351,13 @@ void parse_apkgs() {
   vecforeach(ce->pc->aurPkgs, char *, pkg) { aur_require(*pkg); }
 }
 
-void aur_make(char *pname) {
+int32_t aur_make(char *pname) {
   runcmd("cd %s/aur_%s && yes | makepkg -sci", PANIFICATIE_CACHE, pname) {
     fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
-    TODO("Handle this error");
+    return 1;
   }
+
+  return 0;
 }
 
 void aur_makeall() {
@@ -422,18 +366,22 @@ void aur_makeall() {
     return;
   }
 
-  vecforeach(aurMakePkgs, char*, pkg) {
-    aur_make(*pkg);
-  }
-
   FILE *__restrict cacheFile = fopen(PANIFICATIE_CACHE_FILE, "w");
   ENULL(cacheFile, "Could not open %s", PANIFICATIE_CACHE_FILE);
+
   shforeach(ce->pdc->entries, i) {
     char *cc = ce->pdc->entries[i].value;
     if (strlen(cc) > 2 && cc[0] == cc[1] && cc[1] == '%') {
       fprintf(cacheFile, "%s = %s\n", ce->pdc->entries[i].key, ce->pdc->entries[i].value + 2); /// Get rid of the %% from marking it as built
     }
   }
+
+  vecforeach(aurMakePkgs, char*, pkg) {
+    if (!aur_make(*pkg)) { 
+      fprintf(cacheFile, "%s = %s\n", 
+    } else { break; }
+  }
+
   fclose(cacheFile);
 }
 
@@ -455,21 +403,38 @@ void pacman_paccmd(char *cmd, struct pacEntry *pkgs) {
   }
   vecp(chv, '\0');
 
-  fprintf(stdout, "Cmd %s\n", chv->v);
+  fprintf(stdout, "Do you want to run:\n");
+  fprintf(stdout, "%s\n", chv->v);
+
+  fprintf(stdout, "Answer: y/n\n");
+
+  char answ[10];
+  fscanf(stdin, "%2s", answ);
+  if (answ[0] == 'y') {
+    runcmd("%s", chv->v) {
+      fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+      exit(1);
+    }
+  } else {
+    fprintf(stdout, "Understood.\n");
+  }
 
   vecfree(chv);
 }
 
-void pacman_install() { /// TODO: Add support for package groups
+void pacman_install() {
   alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
 
+  veci(alpmpkgv, pacmanGroupPkgs);
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
-  parse_apkgs(); /// TODO: Check conflicts in the added packages
-  vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); } /// Providers for the same dependency
+  parse_apkgs(); /// TODO: Check conflicts in the added packages               ///
+  vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); }  /// Providers for the same dependency
+  vecforeach(pacmanGroupPkgs, alpm_pkg_t*, pkg) { check_add_package(alpm_pkg_get_name(*pkg)); }
+  vecfree(pacmanGroupPkgs);
 
-  get_removable_packages(); 
+  get_installable_removable_packages(); 
 
-  //print_packages_status();
+  // print_packages_status();
 
   alpm_list_t *insPackages = NULL;
   shforeach(requiredPackages, i) { insPackages = alpm_list_add(insPackages, requiredPackages[i].value); }
@@ -485,10 +450,15 @@ void pacman_install() { /// TODO: Add support for package groups
 
   alpm_list_free(insPackages);
 
-  pacman_paccmd("sudo pacman -Rns", removablePackages);
-  // pacman_paccmd("sudo pacman -S", requiredPackages);
+  if (shlenu(insPackages) > 0) {
+    pacman_paccmd("sudo pacman -S", installablePackages);
+  }
   
-  //aur_makeall();
+  aur_makeall();
+
+  if (shlenu(removablePackages) > 0) {
+    pacman_paccmd("sudo pacman -Rns", removablePackages);
+  }
 }
 
 void free_package(struct package *pkg) { 
@@ -508,6 +478,7 @@ void pacman_freedb() {
   vecfree(aurMakePkgs);
   
   shfree(removablePackages);
+  shfree(installablePackages);
   shfree(installedPackages);
   shfree(requiredPackages);
   shfree(pkgdb);

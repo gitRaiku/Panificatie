@@ -220,12 +220,10 @@
 #        define NOB_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK) __attribute__ ((format (printf, STRING_INDEX, FIRST_TO_CHECK)))
 #    endif // __MINGW_PRINTF_FORMAT
 #else
-//   TODO: implement NOB_PRINTF_FORMAT for MSVC
 #    define NOB_PRINTF_FORMAT(STRING_INDEX, FIRST_TO_CHECK)
 #endif
 
 #define NOB_UNUSED(value) (void)(value)
-#define NOB_TODO(message) do { fprintf(stderr, "%s:%d: TODO: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 #define NOB_UNREACHABLE(message) do { fprintf(stderr, "%s:%d: UNREACHABLE: %s\n", __FILE__, __LINE__, message); abort(); } while(0)
 
 #define NOB_ARRAY_LEN(array) (sizeof(array)/sizeof(array[0]))
@@ -439,7 +437,6 @@ typedef struct {
 // use it as a C string.
 void nob_cmd_render(Nob_Cmd cmd, Nob_String_Builder *render);
 
-// TODO: implement C++ support for nob.h
 #define nob_cmd_append(cmd, ...) \
     nob_da_append_many(cmd, \
                        ((const char*[]){__VA_ARGS__}), \
@@ -491,7 +488,6 @@ int nob_file_exists(const char *file_path);
 const char *nob_get_current_dir_temp(void);
 bool nob_set_current_dir(const char *path);
 
-// TODO: we should probably document somewhere all the compiler we support
 
 // The nob_cc_* macros try to abstract away the specific compiler.
 // They are verify basic and not particularly flexible, but you can redefine them if you need to
@@ -513,7 +509,7 @@ bool nob_set_current_dir(const char *path);
 
 #ifndef nob_cc_flags
 #  if defined(_MSC_VER) && !defined(__clang__)
-#    define nob_cc_flags(...)  // TODO: Add some cool recommended flags for MSVC (I don't really know any)
+#    define nob_cc_flags(...)  
 #  else
 #    define nob_cc_flags(cmd) nob_cmd_append(cmd, "-Wall", "-Wextra")
 #  endif
@@ -531,11 +527,9 @@ bool nob_set_current_dir(const char *path);
 #  define nob_cc_inputs(cmd, ...) nob_cmd_append(cmd, __VA_ARGS__)
 #endif // nob_cc_inputs
 
-// TODO: add MinGW support for Go Rebuild Urself™ Technology and all the nob_cc_* macros above
 //   Musializer contributors came up with a pretty interesting idea of an optional prefix macro which could be useful for
 //   MinGW support:
 //   https://github.com/tsoding/musializer/blob/b7578cc76b9ecb573d239acc9ccf5a04d3aba2c9/src_build/nob_win64_mingw.c#L3-L9
-// TODO: Maybe instead NOB_REBUILD_URSELF macro, the Go Rebuild Urself™ Technology should use the
 //   user defined nob_cc_* macros instead?
 #ifndef NOB_REBUILD_URSELF
 #  if defined(_WIN32)
@@ -775,7 +769,6 @@ void nob__go_rebuild_urself(int argc, char **argv, const char *source_path, ...)
         exit(1);
     }
 #ifdef NOB_EXPERIMENTAL_DELETE_OLD
-    // TODO: this is an experimental behavior behind a compilation flag.
     // Once it is confirmed that it does not cause much problems on both POSIX and Windows
     // we may turn it on by default.
     nob_delete_file(old_binary_path);
@@ -953,7 +946,6 @@ Nob_Proc nob_cmd_run_async_redirect(Nob_Cmd cmd, Nob_Cmd_Redirect redirect)
     siStartInfo.cb = sizeof(STARTUPINFO);
     // NOTE: theoretically setting NULL to std handles should not be a problem
     // https://docs.microsoft.com/en-us/windows/console/getstdhandle?redirectedfrom=MSDN#attachdetach-behavior
-    // TODO: check for errors in GetStdHandle
     siStartInfo.hStdError = redirect.fderr ? *redirect.fderr : GetStdHandle(STD_ERROR_HANDLE);
     siStartInfo.hStdOutput = redirect.fdout ? *redirect.fdout : GetStdHandle(STD_OUTPUT_HANDLE);
     siStartInfo.hStdInput = redirect.fdin ? *redirect.fdin : GetStdHandle(STD_INPUT_HANDLE);
@@ -1352,7 +1344,6 @@ Nob_File_Type nob_get_file_type(const char *path)
     }
 
     if (attr & FILE_ATTRIBUTE_DIRECTORY) return NOB_FILE_DIRECTORY;
-    // TODO: detect symlinks on Windows (whatever that means on Windows anyway)
     return NOB_FILE_REGULAR;
 #else // _WIN32
     struct stat statbuf;
@@ -1431,7 +1422,6 @@ bool nob_copy_directory_recursively(const char *src_path, const char *dst_path)
         } break;
 
         case NOB_FILE_SYMLINK: {
-            nob_log(NOB_WARNING, "TODO: Copying symlinks is not supported yet");
         } break;
 
         case NOB_FILE_OTHER: {
@@ -1478,7 +1468,6 @@ char *nob_temp_sprintf(const char *format, ...)
     NOB_ASSERT(n >= 0);
     char *result = nob_temp_alloc(n + 1);
     NOB_ASSERT(result != NULL && "Extend the size of the temporary allocator");
-    // TODO: use proper arenas for the temporary allocator;
     va_start(args, format);
     vsnprintf(result, n + 1, format, args);
     va_end(args);
@@ -1637,7 +1626,6 @@ bool nob_read_entire_file(const char *path, Nob_String_Builder *sb)
 
     fread(sb->items + sb->count, m, 1, f);
     if (ferror(f)) {
-        // TODO: Afaik, ferror does not set errno. So the error reporting in defer is not correct in this case.
         nob_return_defer(false);
     }
     sb->count = new_count;
@@ -1780,7 +1768,6 @@ bool nob_sv_starts_with(Nob_String_View sv, Nob_String_View expected_prefix)
 int nob_file_exists(const char *file_path)
 {
 #if _WIN32
-    // TODO: distinguish between "does not exists" and other errors
     DWORD dwAttrib = GetFileAttributesA(file_path);
     return dwAttrib != INVALID_FILE_ATTRIBUTES;
 #else
@@ -1859,7 +1846,6 @@ DIR *opendir(const char *dirpath)
 
     dir->hFind = FindFirstFile(buffer, &dir->data);
     if (dir->hFind == INVALID_HANDLE_VALUE) {
-        // TODO: opendir should set errno accordingly on FindFirstFile fail
         // https://docs.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
         errno = ENOSYS;
         goto fail;
@@ -1885,7 +1871,6 @@ struct dirent *readdir(DIR *dirp)
     } else {
         if(!FindNextFile(dirp->hFind, &dirp->data)) {
             if (GetLastError() != ERROR_NO_MORE_FILES) {
-                // TODO: readdir should set errno accordingly on FindNextFile fail
                 // https://docs.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
                 errno = ENOSYS;
             }
@@ -1909,7 +1894,6 @@ int closedir(DIR *dirp)
     NOB_ASSERT(dirp);
 
     if(!FindClose(dirp->hFind)) {
-        // TODO: closedir should set errno accordingly on FindClose fail
         // https://docs.microsoft.com/en-us/windows/win32/api/errhandlingapi/nf-errhandlingapi-getlasterror
         errno = ENOSYS;
         return -1;
@@ -2089,7 +2073,6 @@ int closedir(DIR *dirp)
       1.2.0 (2024-10-15) Make NOB_DA_INIT_CAP redefinable
                          Add NOB_STRIP_PREFIX which strips off nob_* prefix from all the user facing names
                          Add NOB_UNUSED macro
-                         Add NOB_TODO macro
                          Add nob_sv_trim_left and nob_sv_trim_right declarations to the header part
       1.1.1 (2024-10-15) Remove forward declaration for is_path1_modified_after_path2
       1.1.0 (2024-10-15) nob_minimal_log_level
