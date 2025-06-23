@@ -214,11 +214,13 @@ struct panix_config *conf_read_panix(char *fname) {
 
   parse_file(fname);
 
+  /*
   fprintf(stdout, "Pacman packages:\n");
   vecforeach(pc->pacmanPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
   fprintf(stdout, "\nAur packages:\n");
   vecforeach(pc->aurPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
   fprintf(stdout, "\n");
+  */
 
   vecfree(statev);
   return pc;
