@@ -23,7 +23,8 @@ const char *CCFLAGS[] = {
   "-lalpm", "-D_FILE_OFFSET_BITS=64", // ??????????? Be able to write files bigger than 2Gb?? Idk
 };
 
-#define RUN_FILE "/home/raiku/panificatie/base.conf"
+// #define RUN_FILE "/home/raiku/panificatie/base.conf"
+#define RUN_FILE "./etc/panificatie.conf"
 
 void add_flags(Nob_Cmd *__restrict cmd) { int32_t i; for(i = 0; i < ARRAY_LEN(CCFLAGS); ++i) { nob_cmd_append(cmd, CCFLAGS[i]); } }
 

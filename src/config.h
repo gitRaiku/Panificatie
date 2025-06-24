@@ -3,18 +3,13 @@
 
 #define ALPM_ROOT "/"
 #define ALPM_DBPATH "/var/lib/pacman"
-#define ALPM_CACHEPATH "/var/cache/pacman/pkg/"
 #define PACMAN_CONF "/etc/pacman.conf"
 #define PACMAN_LOGFILE "/tmp/panificatie.log"
 #define CONFIG_PATH "./etc/panificatie.conf"
 
 #define PANIFICATIE_CACHE "/var/cache/panificatie"
 #define PANIFICATIE_CACHE_FILE "/var/cache/panificatie/dbs.cache"
-
-//#define  "./etc/panificatie.conf"
-
-//#GPGDir      = /etc/pacman.d/gnupg/
-//#HookDir     = /etc/pacman.d/hooks/
+#define PANIFICATIE_KEYRING_FILE "/var/cache/panificatie/aur.gpg"
 
 static const char *const pacman_repositories[] = { "core", "extra", "multilib" };
 static const char *const pacman_mirrors[] = { 
