@@ -164,6 +164,10 @@ rq_add_provides:;
   }
 }
 
+int gdbgeti(char *str) {
+  return shgeti(installedPackages, str);
+}
+
 void get_installable_removable_packages() {
   shforeach(installedPackages, i) {
     // if (alpm_pkg_get_reason(installedPackages[i].value) != ALPM_PKG_REASON_EXPLICIT) { continue ; } /// TODO: Make this a flag
@@ -175,8 +179,8 @@ void get_installable_removable_packages() {
   }
 
   shforeach(requiredPackages, i) {
-    if (shgeti(installedPackages, requiredPackages[i].key) < 0) {
-      shput(installablePackages, requiredPackages[i].key, requiredPackages[i].value);
+    if (shgeti(installedPackages, alpm_pkg_get_name(requiredPackages[i].value)) < 0) {
+      shput(installablePackages, alpm_pkg_get_name(requiredPackages[i].value), requiredPackages[i].value);
     }
   }
 }
@@ -213,7 +217,7 @@ uint8_t aur_checkexists(char *path) {
 
 char _fbuf[1024]; int32_t _fres;
 #define ifm(...) (snprintf(_fbuf, sizeof(_fbuf), __VA_ARGS__),_fbuf)
-#define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0))
+#define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0)) // Use sth better than system
 #define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
 
 int32_t aur_require(char *pname);
@@ -254,15 +258,6 @@ int32_t aur_add(char *pname) {
 
   struct strEntry *se = conf_read_eq(aurpath(".SRCINFO"));
 
-  if (shgeti(se, "pkgver") >= 0 && shgeti(se, "pkgrel") >= 0) { /// This is never to be optimized
-    char verstr[256] = {0};
-    char *pkgver = shget(se, "pkgver")->v[0];
-    char *pkgrel = shget(se, "pkgrel")->v[0];
-    strncpy(verstr, ifm("%s___%s", pkgver, pkgrel), sizeof(verstr));
-    shput(aurInstallablePackages, strdup(pname), strdup(verstr));
-  } else { return 1; }
-
-
   if (shgeti(se, "depends") >= 0) { 
     struct strv *ce = shget(se, "depends"); 
     vecforeach(ce, char*, str) { 
@@ -277,6 +272,14 @@ int32_t aur_add(char *pname) {
       aur_adddep(*str); 
     } 
   } /// TODO: Maybe not always require makedeps
+
+  if (shgeti(se, "pkgver") >= 0 && shgeti(se, "pkgrel") >= 0) { /// This is never to be optimized
+    char verstr[256] = {0};
+    char *pkgver = shget(se, "pkgver")->v[0];
+    char *pkgrel = shget(se, "pkgrel")->v[0];
+    strncpy(verstr, ifm("%s___%s", pkgver, pkgrel), sizeof(verstr));
+    shput(aurInstallablePackages, strdup(pname), strdup(verstr));
+  } else { return 1; }
 
   conf_free_eq(se);
 
@@ -337,8 +340,9 @@ void parse_apkgs() {
   vecforeach(ce->pc->aurPkgs, char *, pkg) { aur_require(*pkg); }
 }
 
+#define GNUPGHOME ifm(PANIFICATIE_CACHE"/.gnupg-%i",getuid())
 int32_t aur_make(char *pname) {
-  runcmd("cd %s/aur_%s && yes | makepkg -sci", PANIFICATIE_CACHE, pname) {
+  runcmd("cd %s/aur_%s && yes | GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i makepkg -sci", PANIFICATIE_CACHE, pname, getuid()) {
     fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
     return 1;
   }
@@ -346,8 +350,48 @@ int32_t aur_make(char *pname) {
   return 0;
 }
 
+uint8_t pacman_get_answer() {
+
+  char answ[10];
+  while (1) { 
+    fprintf(stdout, "Answer: y/n\n"); /// TODO: Getline default Y
+                                      /// TODO: Config file
+    fscanf(stdin, "%2s", answ);
+    if (answ[0] == 'y' || answ[0] == 'Y') {
+      return 1;
+    } else if (answ[0] == 'n' || answ[0] == 'N') {
+      fprintf(stdout, "Understood.\n");
+      return 0;
+    }
+  }
+}
+
 int aur_ver_greater(char *v1, char *v2) { /// TODO: Implement
   return 0;
+}
+
+void aur_initgpg() {
+  if (!aur_checkexists(GNUPGHOME)) {
+    ENEZ(mkdir(GNUPGHOME, 0700), "Could not create gpg directory at %s", GNUPGHOME);
+  }
+  FILE *__restrict gpgconf = fopen(ifm(PANIFICATIE_CACHE"/.gnupg-%i/gpg.conf",getuid()), "w");
+  ENULL(gpgconf, "Could not open gpg conf at %s", ifm(PANIFICATIE_CACHE"/.gnupg-%i/gpg.conf",getuid()));
+  svecforeach(gnupg_keyservers, const char* const, ksrv) {
+    fprintf(gpgconf, "keyserver \"%s\"\n", *ksrv);
+  }
+  fclose(gpgconf);
+}
+
+void aur_updateconf() {
+  FILE *__restrict cacheFile = fopen(PANIFICATIE_CACHE_FILE, "w");
+  ENULL(cacheFile, "Could not open %s", PANIFICATIE_CACHE_FILE);
+
+  shforeach(ce->pdc->entries, i) {
+    fprintf(cacheFile, "%s=%s\n", ce->pdc->entries[i].key, ce->pdc->entries[i].value);
+  }
+
+  fflush(cacheFile);
+  fclose(cacheFile);
 }
 
 void aur_makeall() {
@@ -355,8 +399,8 @@ void aur_makeall() {
     fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
     return;
   }
-  FILE *__restrict cacheFile = fopen(PANIFICATIE_CACHE_FILE, "w");
-  ENULL(cacheFile, "Could not open %s", PANIFICATIE_CACHE_FILE);
+
+  aur_initgpg();
 
 /*
   shforeach(ce->pdc->entries, i) {
@@ -374,13 +418,37 @@ void aur_makeall() {
     if (entpkg >= 0) { fprintf(stdout, "%s", ce->pdc->entries[entpkg].value); }
     fprintf(stdout, "] installed[%s]\n", aurInstallablePackages[inspkg].value);
     if (entpkg < 0 || aur_ver_greater(aurInstallablePackages[inspkg].value, ce->pdc->entries[entpkg].value)) {
-      if (!aur_make(aurInstallablePackages[inspkg].key)) { 
-        fprintf(cacheFile, "%s=%s\n", aurInstallablePackages[inspkg].key, aurInstallablePackages[inspkg].value);
-      } else { break; }
+      fprintf(stdout, "Do you want to install %s cached[%s] installed[%s]?\n",
+        aurInstallablePackages[i].key,
+        (entpkg >= 0) ? ce->pdc->entries[entpkg].value : "",
+        aurInstallablePackages[inspkg].value);
+
+      if (pacman_get_answer()) {
+        struct strEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", PANIFICATIE_CACHE, aurInstallablePackages[inspkg].key));
+
+        if (shgeti(se, "validpgpkeys") >= 0) { 
+          struct strv *ce = shget(se, "validpgpkeys"); 
+          vecforeach(ce, char*, str) { 
+            runcmd("GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --list-keys %s &> /dev/null", getuid(), *str) { // Key not found; 
+              fprintf(stdout, "GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --recv-keys %s\n", getuid(), *str);
+                runcmd("GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --recv-keys %s", getuid(), *str) { 
+                fprintf(stderr, "Could not import gpg key %s!\n", *str);
+              }
+            }
+          } 
+        }
+
+        conf_free_eq(se);
+
+        if (!aur_make(aurInstallablePackages[inspkg].key)) { 
+          if (entpkg < 0) {
+            shput(ce->pdc->entries, strdup(aurInstallablePackages[inspkg].key), aurInstallablePackages[inspkg].value);
+          }
+          aur_updateconf();
+        } else { break; }
+      }
     }
   }
-
-  fclose(cacheFile);
 }
 
 
@@ -404,17 +472,11 @@ void pacman_paccmd(char *cmd, struct pacEntry *pkgs) {
   fprintf(stdout, "Do you want to run:\n");
   fprintf(stdout, "%s\n", chv->v);
 
-  fprintf(stdout, "Answer: y/n\n");
-
-  char answ[10];
-  fscanf(stdin, "%2s", answ);
-  if (answ[0] == 'y') {
+  if (pacman_get_answer()) {
     runcmd("%s", chv->v) {
       fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
       exit(1);
     }
-  } else {
-    fprintf(stdout, "Understood.\n");
   }
 
   vecfree(chv);
@@ -448,8 +510,8 @@ void pacman_install() {
 
   alpm_list_free(insPackages);
 
-  if (shlenu(insPackages) > 0) {
-    //pacman_paccmd("sudo pacman -S", installablePackages);
+  if (shlenu(installablePackages) > 0) {
+    pacman_paccmd("sudo pacman -S", installablePackages);
   }
   
   aur_makeall();
