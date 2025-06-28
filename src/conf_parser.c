@@ -238,41 +238,6 @@ void conf_free_config(struct panix_config *pc) {
   free(pc);
 }
 
-struct pdb *conf_read_pdb(char *fname) {
-  struct pdb *pdc = calloc(1, sizeof(struct pdb));
-
-  int32_t t = open(fname, O_RDONLY);
-  if (t < 0) { return pdc; }
-  close(t);
-  uint32_t clen = 0;
-  char *f = readfile(fname, &clen);
-
-  char *ks = f;
-  char *vs = NULL;
-  for(uint32_t i = 0; i < clen; ++i) {
-    if (f[i] == '\n') {
-      f[i] = '\0';
-      if (ks != NULL && vs != NULL) { shput(pdc->entries, strdup(ks), strdup(vs)); }
-      ks = f + i + 1;
-      vs = NULL;
-    }
-    if (f[i] == '=') { f[i] = '\0'; vs = f + i + 1; }
-  }
-  if (ks != NULL && vs != NULL) { shput(pdc->entries, strdup(ks), strdup(vs)); }
-
-  free(f);
-  return pdc;
-}
-
-void conf_free_pdb(struct pdb *pdc) {
-  shforeach(pdc->entries, i) { 
-    free(pdc->entries[i].value); 
-    free(pdc->entries[i].key); 
-  }
-  shfree(pdc->entries);
-  free(pdc);
-}
-
 char *trim_str(char *str) {
   char *st = str;
   while (*st != '\0' && isspace(*st)) { ++st; }
@@ -292,7 +257,7 @@ char *find_next(char *str, char c) {
   return str;
 }
 
-void add_line(struct strEntry **se, char *cl) {
+void add_line(struct vstrEntry **se, char *cl) {
   char *ce = NULL;
   ce = find_next(cl, '=');
   if (ce == NULL) { return; } 
@@ -312,14 +277,14 @@ void add_line(struct strEntry **se, char *cl) {
   }
 }
 
-struct strEntry *conf_read_eq(char *fname) {
+struct vstrEntry *conf_read_eq(char *fname) {
   int32_t t = open(fname, O_RDONLY); if (t < 0) { return NULL; } close(t);
 
   uint32_t clen = 0;
   char *f = readfile(fname, &clen);
   char *cl = f, *nl = NULL;
 
-  struct strEntry *se = NULL;
+  struct vstrEntry *se = NULL;
 
   while ((nl = find_next(cl, '\n')) != NULL) {
     if (*nl == '\0') { break; }
@@ -333,7 +298,7 @@ struct strEntry *conf_read_eq(char *fname) {
   return se;
 }
 
-void conf_free_eq(struct strEntry *se) {
+void conf_free_eq(struct vstrEntry *se) {
   shforeach(se, i) { 
     vecforeach(se[i].value, char*, str) { free(*str); }
     vecfree(se[i].value);

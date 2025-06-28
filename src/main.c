@@ -10,7 +10,6 @@
 #include "pacman.h"
 #include "conf_parser.h"
 
-char *cacheFile = PANIFICATIE_CACHE_FILE;
 char *configFile = CONFIG_PATH;
 
 void help() {
@@ -26,10 +25,6 @@ void parseArgs(int argc, char **argv) {
     seq(i, "-c") { goto arg_config;
     } else seq(i, "--config") { arg_config:;
       if (i != argc - 1) { configFile = argv[i + 1]; ++i; }
-    } else seq(i, "-C") { goto arg_cache;
-    } else seq(i, "--cache") { arg_cache:;
-      TODO("Make cache path redefinable");
-      if (i != argc - 1) { cacheFile = argv[i + 1]; ++i; }
     } else {
       help();
       exit(1);
@@ -40,7 +35,6 @@ void parseArgs(int argc, char **argv) {
 int main(int argc, char **argv) {
   parseArgs(argc, argv);
   struct cenv ce;
-  ce.pdc = conf_read_pdb(cacheFile);
   ce.pc = conf_read_panix(configFile);
 
   pacman_set_cenv(&ce);
@@ -48,7 +42,6 @@ int main(int argc, char **argv) {
   pacman_init();
   pacman_install();
   
-  conf_free_pdb(ce.pdc);
   conf_free_config(ce.pc);
   pacman_freedb();
   return 0;

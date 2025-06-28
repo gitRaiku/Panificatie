@@ -27,20 +27,11 @@ struct panix_config {
 
 void conf_free_config(struct panix_config *pc);
 
-struct strEntry { char *key; struct strv *value; }; /// TODO: Merge into one but
-struct strEntry *conf_read_eq(char *fname);         /// This code is already dumb 
-void conf_free_eq(struct strEntry *se);             /// Enough so i'll do it later
-
-struct pdbEntry { char *key; char *value; };
-struct pdb {
-  struct pdbEntry *entries;
-};
-
-struct pdb *conf_read_pdb(char *fname);
-void conf_free_pdb(struct pdb *pc);
+struct vstrEntry { char *key; struct strv *value; }; /// TODO: Merge into one but
+struct vstrEntry *conf_read_eq(char *fname);         /// This code is already dumb 
+void conf_free_eq(struct vstrEntry *se);             /// Enough so i'll do it later
 
 struct cenv {
-  struct pdb *pdc;
   struct panix_config *pc;
 };
 

@@ -8,7 +8,6 @@
 #define CONFIG_PATH "./etc/panificatie.conf"
 
 #define PANIFICATIE_CACHE "/var/cache/panificatie"
-#define PANIFICATIE_CACHE_FILE "/var/cache/panificatie/dbs.cache"
 static const char *const gnupg_keyservers[] = { "keys.openpgp.org", "hkps://keyserver.ubuntu.com" };
 
 //#define  "./etc/panificatie.conf"

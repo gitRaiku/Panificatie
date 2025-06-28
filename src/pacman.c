@@ -15,9 +15,7 @@ struct pacEntry *requiredPackages = NULL;
 struct pacEntry *installablePackages = NULL;
 struct pacEntry *removablePackages = NULL;
 struct alpmpkgv *pacmanGroupPkgs = NULL;
-struct pdbEntry *aurInstallablePackages = NULL;
-
-struct pdbEntry *pdb = NULL;
+struct strEntry *aurInstallablePackages = NULL;
 
 
 uint8_t checkexists(char *path) {
@@ -235,13 +233,8 @@ void aur_adddep(char *pname) {
   char *ns = NULL; /// Get rid of version specifiers TODO: Handle them
   if ((ns = str_find_next(pname, '>')) != NULL) { *ns = '\0'; }
   if ((ns = str_find_next(pname, '=')) != NULL) { *ns = '\0'; }
-  if (shgeti(pkgdb, pname) >= 0) {
-    //fprintf(stdout, "Adding dep from db %s!\n", pname);
-    require_package(pname, 0);
-  } else {
-    //fprintf(stdout, "Adding dep from AUR %s!\n", pname);
-    aur_require(pname);
-  }
+  if (shgeti(pkgdb, pname) >= 0) { require_package(pname, 0); } 
+  else { aur_require(pname); }
 }
 
 int32_t aur_add(char *pname) {
@@ -254,34 +247,25 @@ int32_t aur_add(char *pname) {
     return 1;
   }
 
-  if (shgeti(ce->pdc->entries, pname) >= 0) {
-    char *cs = shget(ce->pdc->entries, pname);
-    if (strlen(cs) > 2 && cs[0] == cs[1] && cs[1] == '%') { return 0; } /// Marked as parsed
-  }
+  if (shgeti(aurInstallablePackages, pname) >= 0) { return 0; }
 
-  struct strEntry *se = conf_read_eq(aurpath(".SRCINFO"));
+  struct vstrEntry *se = conf_read_eq(aurpath(".SRCINFO"));
 
   if (shgeti(se, "depends") >= 0) { 
     struct strv *ce = shget(se, "depends"); 
-    vecforeach(ce, char*, str) { 
-      //fprintf(stdout, "Adding dep %s -> %s\n", pname, *str);
-      aur_adddep(*str); 
-    } 
+    vecforeach(ce, char*, str) { aur_adddep(*str); } 
   }
+
   if (shgeti(se, "makedepends") >= 0) { 
     struct strv *ce = shget(se, "makedepends"); 
-    vecforeach(ce, char*, str) { 
-      //fprintf(stdout, "Adding makedep %s -> %s\n", pname, *str);
-      aur_adddep(*str); 
-    } 
-  } /// TODO: Maybe not always require makedeps
+    vecforeach(ce, char*, str) { aur_adddep(*str); } 
+  }
 
   if (shgeti(se, "pkgver") >= 0 && shgeti(se, "pkgrel") >= 0) { /// This is never to be optimized
-    char verstr[256] = {0};
     char *pkgver = shget(se, "pkgver")->v[0];
     char *pkgrel = shget(se, "pkgrel")->v[0];
-    strncpy(verstr, ifm("%s___%s", pkgver, pkgrel), sizeof(verstr));
-    shput(aurInstallablePackages, strdup(pname), strdup(verstr));
+    shput(aurInstallablePackages, strdup(pname), 
+        strdup(ifm("%s-%s", pkgver, pkgrel)));
   } else { return 1; }
 
   conf_free_eq(se);
@@ -327,7 +311,7 @@ int32_t aur_require(char *pname) {
   }
 
 
-  if (shgeti(ce->pdc->entries, pname) >= 0) { // TODO: Handle more specificity
+  if (shgeti(installedPackages, pname) >= 0) { // TODO: Handle more specificity
     return aur_update(pname);
   } else {
     return aur_firstinstall(pname);
@@ -354,7 +338,6 @@ int32_t aur_make(char *pname) {
 }
 
 uint8_t pacman_get_answer() {
-
   char answ[10];
   while (1) { 
     fprintf(stdout, "Answer: y/n\n"); /// TODO: Getline default Y
@@ -385,18 +368,6 @@ void aur_initgpg() {
   fclose(gpgconf);
 }
 
-void aur_updateconf() {
-  FILE *__restrict cacheFile = fopen(PANIFICATIE_CACHE_FILE, "w");
-  ENULL(cacheFile, "Could not open %s", PANIFICATIE_CACHE_FILE);
-
-  shforeach(ce->pdc->entries, i) {
-    fprintf(cacheFile, "%s=%s\n", ce->pdc->entries[i].key, ce->pdc->entries[i].value);
-  }
-
-  fflush(cacheFile);
-  fclose(cacheFile);
-}
-
 void aur_makeall() {
   if (!checkexists(PANIFICATIE_CACHE)) {
     fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
@@ -405,29 +376,18 @@ void aur_makeall() {
 
   aur_initgpg();
 
-/*
-  shforeach(ce->pdc->entries, i) {
-    char *cc = ce->pdc->entries[i].value;
-    if (strlen(cc) > 2 && cc[0] == cc[1] && cc[1] == '%') {
-      fprintf(cacheFile, "%s = %s\n", ce->pdc->entries[i].key, ce->pdc->entries[i].value + 2); /// Get rid of the %% from marking it as built
-    }
-  }*/
-
   shforeach(aurInstallablePackages, i) {
-    int entpkg = shgeti(ce->pdc->entries, aurInstallablePackages[i].key);
-    int inspkg = shgeti(aurInstallablePackages, aurInstallablePackages[i].key); /// Package not previously installed, or installed on lower version
-    ENEG(inspkg, "Package %s trying to be installed, but not processed internally!", aurInstallablePackages[i].key);
-    fprintf(stdout, "Package %s: cache[", aurInstallablePackages[i].key);
-    if (entpkg >= 0) { fprintf(stdout, "%s", ce->pdc->entries[entpkg].value); }
-    fprintf(stdout, "] installed[%s]\n", aurInstallablePackages[inspkg].value);
-    if (entpkg < 0 || aur_ver_greater(aurInstallablePackages[inspkg].value, ce->pdc->entries[entpkg].value)) {
-      fprintf(stdout, "Do you want to install %s cached[%s] installed[%s]?\n",
-        aurInstallablePackages[i].key,
-        (entpkg >= 0) ? ce->pdc->entries[entpkg].value : "",
-        aurInstallablePackages[inspkg].value);
+    char *pname = aurInstallablePackages[i].key;
+    const char *oldver = "";
+    if (shgeti(installedPackages, pname) >= 0) { oldver = alpm_pkg_get_version(shget(installedPackages, pname)); }
+
+    const char *newver = shget(aurInstallablePackages, pname);
+    //fprintf(stdout, "Package %s: cache[%s] installed[%s]\n", pname, oldver, newver);
+    if (*oldver == '\0' || (alpm_pkg_vercmp(newver, oldver) == 1)) {
+      fprintf(stdout, "Do you want to install %s cached[%s] installed[%s]?\n", pname, oldver, newver);
 
       if (pacman_get_answer()) {
-        struct strEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", PANIFICATIE_CACHE, aurInstallablePackages[inspkg].key));
+        struct vstrEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", PANIFICATIE_CACHE, pname));
 
         if (shgeti(se, "validpgpkeys") >= 0) { 
           struct strv *ce = shget(se, "validpgpkeys"); 
@@ -443,12 +403,7 @@ void aur_makeall() {
 
         conf_free_eq(se);
 
-        if (!aur_make(aurInstallablePackages[inspkg].key)) { 
-          if (entpkg < 0) {
-            shput(ce->pdc->entries, strdup(aurInstallablePackages[inspkg].key), aurInstallablePackages[inspkg].value);
-          }
-          aur_updateconf();
-        } else { break; }
+        aur_make(pname);
       }
     }
   }

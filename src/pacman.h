@@ -27,6 +27,7 @@ DEF_VEC(alpm_pkg_t*, alpmpkgv);
 
 struct depEntry { char *key; struct pkgv *value; };
 struct pacEntry { char *key; alpm_pkg_t *value; };
+struct strEntry { char *key; char *value; };
 
 void pacman_set_cenv(struct cenv *_ce);
 void pacman_install();
