@@ -31,7 +31,7 @@ struct pacEntry { char *key; alpm_pkg_t *value; };
 void pacman_set_cenv(struct cenv *_ce);
 void pacman_install();
 
-void pacman_initdb();
+void pacman_init();
 void pacman_freedb();
 
 #endif

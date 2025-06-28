@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
 
   pacman_set_cenv(&ce);
 
-  pacman_initdb();
+  pacman_init();
   pacman_install();
   
   conf_free_pdb(ce.pdc);

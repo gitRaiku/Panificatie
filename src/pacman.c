@@ -19,6 +19,13 @@ struct pdbEntry *aurInstallablePackages = NULL;
 
 struct pdbEntry *pdb = NULL;
 
+
+uint8_t checkexists(char *path) {
+  struct stat s;
+  if (stat(path, &s) < 0) { return 0; }
+  return 1;
+}
+
 void db_push_pkg(const char *name, struct package pkg) {
   int gi = shgeti(pkgdb, name);
   if (gi < 0) {
@@ -37,13 +44,10 @@ void db_insert_pkg(alpm_pkg_t *pkg) {
   }
 }
 
-void pacman_initdb() {
+void pacman_init() {
   alpm_errno_t er = 0;
   alpm = alpm_initialize(ALPM_ROOT, ALPM_DBPATH, &er);
   ENEZ(er, "Could not initialize alpm %s", alpm_strerror(er));
-
-  //alpm_list_t *cachedirs = alpm_list_add(NULL, ALPM_CACHEPATH);
-  //ENEZ(alpm_option_set_cachedirs(alpm, cachedirs));
 
   svecforeach(pacman_repositories, const char* const, repo) { 
     alpm_register_syncdb(alpm, *repo, 0); 
@@ -58,6 +62,12 @@ void pacman_initdb() {
       db_insert_pkg(j->data);
     }
   }
+
+  /*
+  if (!checkexists(PANIFICATIE_KEYRING_FILE)) { /// Create the keyring file if it does not exist.
+    system("gpg --no-default-keyring --keyring " PANIFICATIE_KEYRING_FILE " --fingerprint");
+  }
+  */
 }
 
 uint8_t check_pkgv_type(struct pkgv *pv, enum packageType pt) {
@@ -208,13 +218,6 @@ void print_packages_status() {
   fprintf(stdout, "\n");
 }
 
-uint8_t aur_checkexists(char *path) {
-  struct stat s;
-  if (stat(path, &s) < 0) { return 0; }
-  return 1;
-}
-
-
 char _fbuf[1024]; int32_t _fres;
 #define ifm(...) (snprintf(_fbuf, sizeof(_fbuf), __VA_ARGS__),_fbuf)
 #define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0)) // Use sth better than system
@@ -242,7 +245,7 @@ void aur_adddep(char *pname) {
 }
 
 int32_t aur_add(char *pname) {
-  if (!aur_checkexists(aurpath(".SRCINFO"))) {
+  if (!checkexists(aurpath(".SRCINFO"))) {
     fprintf(stderr, "Could not find SRCINFO for %s at %s!\n", pname, _fbuf);
     runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
       fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres); return 1;
@@ -298,7 +301,7 @@ int32_t aur_update(char *pname) {
 }
 
 int32_t aur_firstinstall(char *pname) {
-  if (aur_checkexists(aurpath("."))) {
+  if (checkexists(aurpath("."))) {
     fprintf(stderr, "Repository %s at %s already exists yet is not in the database, removing!\n", pname, _fbuf);
     runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
       fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres); return 1;
@@ -317,7 +320,7 @@ int32_t aur_firstinstall(char *pname) {
 }
 
 int32_t aur_require(char *pname) {
-  if (aur_checkexists(aurpath("."))) {
+  if (checkexists(aurpath("."))) {
     return aur_update(pname);
   } else {
     return aur_firstinstall(pname);
@@ -332,7 +335,7 @@ int32_t aur_require(char *pname) {
 }
 
 void parse_apkgs() {
-  if (!aur_checkexists(PANIFICATIE_CACHE)) {
+  if (!checkexists(PANIFICATIE_CACHE)) {
     fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
     return;
   }
@@ -371,7 +374,7 @@ int aur_ver_greater(char *v1, char *v2) { /// TODO: Implement
 }
 
 void aur_initgpg() {
-  if (!aur_checkexists(GNUPGHOME)) {
+  if (!checkexists(GNUPGHOME)) {
     ENEZ(mkdir(GNUPGHOME, 0700), "Could not create gpg directory at %s", GNUPGHOME);
   }
   FILE *__restrict gpgconf = fopen(ifm(PANIFICATIE_CACHE"/.gnupg-%i/gpg.conf",getuid()), "w");
@@ -395,7 +398,7 @@ void aur_updateconf() {
 }
 
 void aur_makeall() {
-  if (!aur_checkexists(PANIFICATIE_CACHE)) {
+  if (!checkexists(PANIFICATIE_CACHE)) {
     fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
     return;
   }
@@ -517,7 +520,7 @@ void pacman_install() {
   aur_makeall();
 
   if (shlenu(removablePackages) > 0) {
-    pacman_paccmd("sudo pacman -Rns", removablePackages);
+    //pacman_paccmd("sudo pacman -Rns", removablePackages);
   }
 }
 
