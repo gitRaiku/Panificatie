@@ -106,7 +106,7 @@ void rebuild() {
 
 void run() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "./"TARGET, "-c", RUN_FILE);
+  nob_cmd_append(&cmd, "./"TARGET, "-c", RUN_FILE, "-v");
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
 }
 
