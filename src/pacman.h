@@ -14,7 +14,8 @@ enum packageType {
   PKG_ALPM_ADDED,
   PKG_AUR,
   PKG_GIT,
-  PKG_CUSTOM
+  PKG_CUSTOM,
+  PKG_END
 };
 
 struct package {
@@ -30,7 +31,11 @@ struct pacEntry { char *key; alpm_pkg_t *value; };
 struct strEntry { char *key; char *value; };
 
 void pacman_set_cenv(struct cenv *_ce);
+void pacman_read_config();
 void pacman_install();
+
+void pacman_require(const char *pname, uint8_t base);
+int32_t aur_require(char *pname);
 
 void pacman_init();
 void pacman_freedb();

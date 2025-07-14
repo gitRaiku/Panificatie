@@ -9,14 +9,13 @@ alpm_handle_t *alpm;
 alpm_list_t *dblist;
 
 struct pacEntry *installedPackages = NULL;
-
 struct depEntry *pkgdb = NULL;
+struct pacEntry *removablePackages = NULL;
+
 struct pacEntry *requiredPackages = NULL;
 struct pacEntry *installablePackages = NULL;
-struct pacEntry *removablePackages = NULL;
 struct alpmpkgv *pacmanGroupPkgs = NULL;
 struct strEntry *aurInstallablePackages = NULL;
-
 
 uint8_t checkexists(char *path) {
   struct stat s;
@@ -105,16 +104,20 @@ void check_add_package(const char *pname) {
 }
 
 /// TODO: Improve error checking and add it to all functions
-void require_package(const char *pname, uint8_t base) {
+void pacman_require(const char *pname, uint8_t base) {
   struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
   if (pv == NULL) { 
     if (base) { /// Check maybe a group
       alpm_list_t *grp = alpm_find_group_pkgs(dblist, pname);
-      alpmforeach(grp, pkg) {
-        vecp(pacmanGroupPkgs, pkg->data);
-        require_package(alpm_pkg_get_name(pkg->data), 0);
+      if (grp != NULL) {
+        alpmforeach(grp, pkg) {
+          vecp(pacmanGroupPkgs, pkg->data);
+          pacman_require(alpm_pkg_get_name(pkg->data), 0);
+        }
+        alpm_list_free(grp);
+      } else {
+        fprintf(stderr, "Could not find package %s, skipping!\n", pname);
       }
-      alpm_list_free(grp);
     } else { /// TODO: List all missing packages
       fprintf(stderr, "Could not find a provider for %s, not good!\n", pname); 
     }
@@ -168,7 +171,7 @@ rq_add_provides:;
 
   alpmforeach(alpm_pkg_get_depends(p->d), dep) {
     char *dn = ((alpm_depend_t*)dep->data)->name; 
-    if (strcmp(dn, pname)) { require_package(dn, 0); }
+    if (strcmp(dn, pname)) { pacman_require(dn, 0); }
   }
 }
 
@@ -221,8 +224,6 @@ char _fbuf[1024]; int32_t _fres;
 #define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0)) // Use sth better than system
 #define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
 
-int32_t aur_require(char *pname);
-
 char *str_find_next(char *str, char c) {
   while (*str != '\0' && *str != c) { ++str; }
   if (*str == '\0') { return NULL; }
@@ -233,7 +234,7 @@ void aur_adddep(char *pname) {
   char *ns = NULL; /// Get rid of version specifiers TODO: Handle them
   if ((ns = str_find_next(pname, '>')) != NULL) { *ns = '\0'; }
   if ((ns = str_find_next(pname, '=')) != NULL) { *ns = '\0'; }
-  if (shgeti(pkgdb, pname) >= 0) { require_package(pname, 0); } 
+  if (shgeti(pkgdb, pname) >= 0) { pacman_require(pname, 0); } 
   else { aur_require(pname); }
 }
 
@@ -440,11 +441,11 @@ void pacman_paccmd(char *cmd, struct pacEntry *pkgs) {
   vecfree(chv);
 }
 
-void pacman_install() {
+void pacman_read_config() {
   alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
 
   veci(alpmpkgv, pacmanGroupPkgs);
-  vecforeach(ce->pc->pacmanPkgs, char*, pname) { require_package(*pname, 1); } /// First pass is to resolve multiple
+  vecforeach(ce->pc->pacmanPkgs, char*, pname) { pacman_require(*pname, 1); } /// First pass is to resolve multiple
   parse_apkgs(); /// TODO: Check conflicts in the added packages               ///
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); }  /// Providers for the same dependency
   vecforeach(pacmanGroupPkgs, alpm_pkg_t*, pkg) { check_add_package(alpm_pkg_get_name(*pkg)); }
@@ -467,7 +468,10 @@ void pacman_install() {
   }
 
   alpm_list_free(insPackages);
+}
 
+void pacman_install() {
+  if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0) { fprintf(stdout, "There's nothing to do.\n"); }
   if (shlenu(installablePackages) > 0) {
     pacman_paccmd("sudo pacman -S", installablePackages);
   }
@@ -475,7 +479,7 @@ void pacman_install() {
   aur_makeall();
 
   if (shlenu(removablePackages) > 0) {
-    //pacman_paccmd("sudo pacman -Rns", removablePackages);
+    pacman_paccmd("sudo pacman -Rns", removablePackages);
   }
 }
 

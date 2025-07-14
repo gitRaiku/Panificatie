@@ -106,19 +106,20 @@ void rebuild() {
 
 void run() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "./"TARGET, "-c", RUN_FILE);
+  // nob_cmd_append(&cmd, "./"TARGET, "rebuild", "-c", RUN_FILE);
+  nob_cmd_append(&cmd, "./"TARGET, "run", "pacman#gcc");
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
 }
 
 void debug() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "gdb", "-q", "--args", "./"TARGET, "-c", RUN_FILE);
+  nob_cmd_append(&cmd, "gdb", "-q", "--args", "rebuild", "./"TARGET, "-c", RUN_FILE);
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
 }
 
 void valgrind() {
   Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "valgrind", "--leak-check=full", "-s", "./"TARGET, "-c", RUN_FILE);
+  nob_cmd_append(&cmd, "valgrind", "--leak-check=full", "-s", "rebuild", "./"TARGET, "-c", RUN_FILE);
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not valgrind %s!\n", TARGET); exit(1); }
 }
 

@@ -32,7 +32,12 @@ struct vstrEntry *conf_read_eq(char *fname);         /// This code is already du
 void conf_free_eq(struct vstrEntry *se);             /// Enough so i'll do it later
 
 struct cenv {
+  uint8_t update;
+  uint8_t verbose;
+  uint8_t rebrun;
+  struct strv *insPackages;
   struct panix_config *pc;
+  strview configFile;
 };
 
 #endif
