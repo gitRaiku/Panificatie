@@ -1,5 +1,10 @@
 #include "pacman.h"
 
+char _fbuf[1024]; int32_t _fres;
+#define ifm(...) (snprintf(_fbuf, sizeof(_fbuf), __VA_ARGS__),_fbuf)
+#define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0)) // Use sth better than system
+#define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
+
 #define shforeach(shm, res) for (size_t sl__shm ##res = shlenu(shm), res = 0; res < sl__shm ##res; ++res)
 
 struct cenv *ce;
@@ -16,6 +21,16 @@ struct pacEntry *requiredPackages = NULL;
 struct pacEntry *installablePackages = NULL;
 struct alpmpkgv *pacmanGroupPkgs = NULL;
 struct strEntry *aurInstallablePackages = NULL;
+
+void debug_pname(const char *const pname, uint8_t aur) {
+  if (ce->debug) {
+    for(uint32_t i = 0; i < ce->curIndent; ++i) { fputs("  ", stdout); }
+    fprintf(stdout, "%s%s%s\n", aur ? "Aur[" : "", pname, aur ? "]" : "");
+    ++ce->curIndent;
+  }
+}
+
+void debug_exit() { if (ce->debug && ce->curIndent) { ce->curIndent--; } }
 
 uint8_t checkexists(char *path) {
   struct stat s;
@@ -105,6 +120,7 @@ void check_add_package(const char *pname) {
 
 /// TODO: Improve error checking and add it to all functions
 void pacman_require(const char *pname, uint8_t base) {
+  debug_pname(pname, 0);
   struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
   if (pv == NULL) { 
     if (base) { /// Check maybe a group
@@ -121,6 +137,7 @@ void pacman_require(const char *pname, uint8_t base) {
     } else { /// TODO: List all missing packages
       fprintf(stderr, "Could not find a provider for %s, not good!\n", pname); 
     }
+    debug_exit();
     return; 
   } 
 
@@ -137,10 +154,11 @@ void pacman_require(const char *pname, uint8_t base) {
     uint32_t i = 1;
     vecforeach(pv, struct package, pkg) { fprintf(stderr, "  %u) %s", i++, alpm_pkg_get_name(pkg->d)); }
     fprintf(stderr, "\n");
+    debug_exit();
     exit(1);
   }
 
-  vecforeach(pv, struct package, pkg) { if (pkg->t == PKG_ALPM_FIXED) { return; } } /// At least one provider was included
+  vecforeach(pv, struct package, pkg) { if (pkg->t == PKG_ALPM_FIXED) { debug_exit(); return; } } /// At least one provider was included
   
   /// TODO: Add config flag to automatically add package if the dependency name is
   ///     : the same as the package name, as i think this is what pacman does
@@ -151,6 +169,7 @@ void pacman_require(const char *pname, uint8_t base) {
         goto rq_add_provides;
       }
     }
+    debug_exit();
     return; /// No provider was selected and there are multiple choices
   }
 
@@ -173,6 +192,7 @@ rq_add_provides:;
     char *dn = ((alpm_depend_t*)dep->data)->name; 
     if (strcmp(dn, pname)) { pacman_require(dn, 0); }
   }
+  debug_exit();
 }
 
 int gdbgeti(char *str) {
@@ -218,11 +238,6 @@ void print_packages_status() {
   }
   fprintf(stdout, "\n");
 }
-
-char _fbuf[1024]; int32_t _fres;
-#define ifm(...) (snprintf(_fbuf, sizeof(_fbuf), __VA_ARGS__),_fbuf)
-#define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0)) // Use sth better than system
-#define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
 
 char *str_find_next(char *str, char c) {
   while (*str != '\0' && *str != c) { ++str; }
@@ -305,17 +320,23 @@ int32_t aur_firstinstall(char *pname) {
 }
 
 int32_t aur_require(char *pname) {
+  debug_pname(pname, 1); 
+
+  int32_t r;
   if (checkexists(aurpath("."))) {
-    return aur_update(pname);
+    r = aur_update(pname);
   } else {
-    return aur_firstinstall(pname);
+    r = aur_firstinstall(pname);
   }
+
+  debug_exit();
+  return r;
 
 
   if (shgeti(installedPackages, pname) >= 0) { // TODO: Handle more specificity
-    return aur_update(pname);
+    r = aur_update(pname);
   } else {
-    return aur_firstinstall(pname);
+    r = aur_firstinstall(pname);
   }
 }
 
@@ -338,7 +359,7 @@ int32_t aur_make(char *pname) {
   return 0;
 }
 
-uint8_t pacman_get_answer() {
+uint8_t pacman_get_answer() { /// TODO: Put all questions at the begining
   char answ[10];
   while (1) { 
     fprintf(stdout, "Answer: y/n\n"); /// TODO: Getline default Y

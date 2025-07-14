@@ -33,7 +33,7 @@ void conf_free_eq(struct vstrEntry *se);             /// Enough so i'll do it la
 
 struct cenv {
   uint8_t update;
-  uint8_t verbose;
+  uint8_t debug; uint32_t curIndent;
   uint8_t rebrun;
   struct strv *insPackages;
   struct panix_config *pc;

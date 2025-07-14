@@ -25,7 +25,7 @@ void help() {
   fprintf(stdout, "Options:\n");
   fprintf(stdout, "  -c --config: Set config file\n");
   fprintf(stdout, "  -u --update: Update packages\n");
-  fprintf(stdout, "  -v --verbose: Make verbose logging\n");
+  fprintf(stdout, "  -d --debug: Make debug logs\n");
   fprintf(stdout, "  -h --help: Print this message\n");
 }
 
@@ -43,7 +43,7 @@ void parseArgs(int argc, char **argv, struct cenv *__restrict ce) {
     if (0) {}
     carg(c, config, if (i != argc - 1) { ce->configFile = argv[i + 1]; ++i; })
     carg(u, update, ce->update = 1)
-    carg(v, verbose, ce->verbose = 1)
+    carg(d, debug, ce->debug = 1)
     carg(h, help, help(); exit(0); )
     else {
       if (!(ce->rebrun & 2)) {
