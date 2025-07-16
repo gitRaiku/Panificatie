@@ -7,6 +7,7 @@
 #define PACMAN_LOGFILE "/tmp/panificatie.log"
 #define CONFIG_PATH "./etc/panificatie.conf"
 
+/* 1 for autoYes, 0 for ask, 2 for autoNo */
 #define AUTO_PACMAN_UPDATE_REPO_CONFIRM 1
 #define AUTO_PACMAN_INSTALL_CONFIRM 0
 #define AUTO_PACMAN_REMOVE_CONFIRM 0

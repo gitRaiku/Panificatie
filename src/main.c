@@ -23,10 +23,13 @@ void parse_cmd_package(strview pname) {
 void help() {
   fprintf(stdout, "Usage: panificatie [rebuild|run|rebrun] [options] [source#package]\n");
   fprintf(stdout, "Options:\n");
-  fprintf(stdout, "  -c --config: Set config file\n");
-  fprintf(stdout, "  -u --update: Update packages\n");
-  fprintf(stdout, "  -d --debug: Make debug logs\n");
-  fprintf(stdout, "  -h --help: Print this message\n");
+  fprintf(stdout, "  -c --config : Set config file\n");
+  fprintf(stdout, "  -u --update : Update packages\n");
+  fprintf(stdout, "  -v --verbose: Make verbose logs\n");
+  fprintf(stdout, "  -d --debug  : Make debug logs\n");
+  fprintf(stdout, "  -n --no     : Automatically reject everything\n");
+  fprintf(stdout, "  -y --yes    : Automatically accept everything\n");
+  fprintf(stdout, "  -h --help   : Print this message\n");
 }
 
 #define seq(_i, _s) if (!strcmp(argv[_i], _s))
@@ -38,7 +41,11 @@ void parseArgs(int argc, char **argv, struct cenv *__restrict ce) {
     if (0) {}
     carg(c, config, if (i != argc - 1) { ce->configFile = argv[i + 1]; ++i; })
     carg(u, update, ce->update = 1)
-    carg(d, debug, ce->debug = 1)
+    carg(v, verbose, ce->debug = 1)
+    carg(d, debug, ce->debug = 2)
+    carg(n, no, ce->autoPacmanUpdate = ce->autoPacmanInstall = ce->autoPacmanRemove = ce->autoAurUpdate = ce->autoAurInstall = 2;)
+    carg(y, yes, ce->autoPacmanUpdate = ce->autoPacmanInstall = ce->autoPacmanRemove = ce->autoAurUpdate = ce->autoAurInstall = 1;)
+
     carg(h, help, help(); exit(0); )
     else {
       if (ce->rebrun == 0) {

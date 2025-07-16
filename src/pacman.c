@@ -40,8 +40,10 @@ uint8_t checkexists(char *path) {
   return 1;
 }
 
-uint8_t pacman_get_answer(uint8_t autoYes) { /// TODO: Put all questions at the begining
-  if (autoYes) { fprintf(stdout, "Answer: y/n\ny\n"); return 1; }
+uint8_t pacman_get_answer(uint8_t autoAnswer) { /// TODO: Put all questions at the begining
+  if (autoAnswer == 1) { fprintf(stdout, "Answer: y/n\ny\n"); return 1; }
+  if (autoAnswer == 2) { fprintf(stdout, "Answer: y/n\nn\n"); return 0; }
+
   char answ[10];
   while (1) { 
     fprintf(stdout, "Answer: y/n\n"); /// TODO: Getline default Y
@@ -139,8 +141,21 @@ void check_add_package(const char *pname) {
 
 /// TODO: Improve error checking and add it to all functions
 void pacman_require(const char *pname, uint8_t base) {
-  debug_pname(pname, 0);
   struct pkgv *pv = (shgeti(pkgdb, pname) >= 0) ? shget(pkgdb, pname) : NULL;
+  uint8_t raisedDebugIndent = 0;
+
+  if (ce->debug == 1) {
+    if (pv != NULL) {
+      vecforeach(pv, struct package, pkg) { if (pkg->t == PKG_ALPM_FIXED) { goto pacreq_dbgd; } }
+      raisedDebugIndent = 1;
+      debug_pname(pname, 0);
+    }
+  } else if (ce->debug == 2) {
+    raisedDebugIndent = 1;
+    debug_pname(pname, 0);
+  }
+
+pacreq_dbgd:;
   if (pv == NULL) { 
     if (base) { /// Check maybe a group
       alpm_list_t *grp = alpm_find_group_pkgs(dblist, pname);
@@ -156,7 +171,7 @@ void pacman_require(const char *pname, uint8_t base) {
     } else { /// TODO: List all missing packages
       fprintf(stderr, "Could not find a provider for %s, not good!\n", pname); 
     }
-    debug_exit();
+    if (raisedDebugIndent) { debug_exit(); }
     return; 
   } 
 
@@ -173,11 +188,11 @@ void pacman_require(const char *pname, uint8_t base) {
     uint32_t i = 1;
     vecforeach(pv, struct package, pkg) { fprintf(stderr, "  %u) %s", i++, alpm_pkg_get_name(pkg->d)); }
     fprintf(stderr, "\n");
-    debug_exit();
+    if (raisedDebugIndent) { debug_exit(); }
     exit(1);
   }
 
-  vecforeach(pv, struct package, pkg) { if (pkg->t == PKG_ALPM_FIXED) { debug_exit(); return; } } /// At least one provider was included
+  vecforeach(pv, struct package, pkg) { if (pkg->t == PKG_ALPM_FIXED) { if (raisedDebugIndent) { debug_exit(); } return; } } /// At least one provider was included
   
   /// TODO: Add config flag to automatically add package if the dependency name is
   ///     : the same as the package name, as i think this is what pacman does
@@ -188,7 +203,7 @@ void pacman_require(const char *pname, uint8_t base) {
         goto rq_add_provides;
       }
     }
-    debug_exit();
+    if (raisedDebugIndent) { debug_exit(); }
     return; /// No provider was selected and there are multiple choices
   }
 
@@ -211,7 +226,7 @@ rq_add_provides:;
     char *dn = ((alpm_depend_t*)dep->data)->name; 
     if (strcmp(dn, pname)) { pacman_require(dn, 0); }
   }
-  debug_exit();
+  if (raisedDebugIndent) { debug_exit(); }
 }
 
 int gdbgeti(char *str) {
@@ -492,10 +507,10 @@ void pacman_read_config() {
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); }  /// Providers for the same dependency
   vecforeach(pacmanGroupPkgs, alpm_pkg_t*, pkg) { check_add_package(alpm_pkg_get_name(*pkg)); }
   vecfree(pacmanGroupPkgs);
+}
 
+void pacman_install() {
   get_installable_removable_packages(); 
-
-  // print_packages_status();
 
   alpm_list_t *insPackages = NULL;
   shforeach(requiredPackages, i) { insPackages = alpm_list_add(insPackages, requiredPackages[i].value); }
@@ -510,13 +525,14 @@ void pacman_read_config() {
   }
 
   alpm_list_free(insPackages);
-}
 
-void pacman_install() {
+
   if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0) { fprintf(stdout, "There's nothing to do.\n"); }
   if (shlenu(installablePackages) > 0) {
     if (ce->update) {
       pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages);
+    } else {
+      pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages);
     }
   }
   
