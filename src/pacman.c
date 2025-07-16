@@ -7,6 +7,8 @@ char _fbuf[1024]; int32_t _fres;
 
 #define shforeach(shm, res) for (size_t sl__shm ##res = shlenu(shm), res = 0; res < sl__shm ##res; ++res)
 
+DEF_VEC(char, charv)
+
 struct cenv *ce;
 void pacman_set_cenv(struct cenv *_ce) { ce = _ce; }
 
@@ -37,6 +39,23 @@ uint8_t checkexists(char *path) {
   if (stat(path, &s) < 0) { return 0; }
   return 1;
 }
+
+uint8_t pacman_get_answer(uint8_t autoYes) { /// TODO: Put all questions at the begining
+  if (autoYes) { fprintf(stdout, "Answer: y/n\ny\n"); return 1; }
+  char answ[10];
+  while (1) { 
+    fprintf(stdout, "Answer: y/n\n"); /// TODO: Getline default Y
+                                      /// TODO: Config file
+    fscanf(stdin, "%2s", answ);
+    if (answ[0] == 'y' || answ[0] == 'Y') {
+      return 1;
+    } else if (answ[0] == 'n' || answ[0] == 'N') {
+      fprintf(stdout, "Understood.\n");
+      return 0;
+    }
+  }
+}
+
 
 void db_push_pkg(const char *name, struct package pkg) {
   int gi = shgeti(pkgdb, name);
@@ -290,12 +309,12 @@ int32_t aur_add(char *pname) {
 }
 
 int32_t aur_update(char *pname) {
-  /* TODO: Only update if update flag
-  runcmd("cd %s/aur_%s && git stash && git pull", PANIFICATIE_CACHE, pname) {
-    fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
-    TODO("Handle this error");
+  if (ce->update && pacman_get_answer(ce->autoAurUpdate)) {
+    runcmd("cd %s/aur_%s && git stash && git pull", PANIFICATIE_CACHE, pname) {
+      fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+      return 1;
+    }
   }
-  */
 
   return aur_add(pname);
 }
@@ -340,13 +359,14 @@ int32_t aur_require(char *pname) {
   }
 }
 
-void parse_apkgs() {
+int parse_apkgs() {
   if (!checkexists(PANIFICATIE_CACHE)) {
     fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
-    return;
+    return 1;
   }
 
-  vecforeach(ce->pc->aurPkgs, char *, pkg) { aur_require(*pkg); }
+  vecforeach(ce->pc->aurPkgs, char *, pkg) { if (aur_require(*pkg)) { return 1; } }
+  return 0;
 }
 
 #define GNUPGHOME ifm(PANIFICATIE_CACHE"/.gnupg-%i",getuid())
@@ -357,21 +377,6 @@ int32_t aur_make(char *pname) {
   }
 
   return 0;
-}
-
-uint8_t pacman_get_answer() { /// TODO: Put all questions at the begining
-  char answ[10];
-  while (1) { 
-    fprintf(stdout, "Answer: y/n\n"); /// TODO: Getline default Y
-                                      /// TODO: Config file
-    fscanf(stdin, "%2s", answ);
-    if (answ[0] == 'y' || answ[0] == 'Y') {
-      return 1;
-    } else if (answ[0] == 'n' || answ[0] == 'N') {
-      fprintf(stdout, "Understood.\n");
-      return 0;
-    }
-  }
 }
 
 int aur_ver_greater(char *v1, char *v2) { /// TODO: Implement
@@ -408,7 +413,7 @@ void aur_makeall() {
     if (*oldver == '\0' || (alpm_pkg_vercmp(newver, oldver) == 1)) {
       fprintf(stdout, "Do you want to install %s cached[%s] installed[%s]?\n", pname, oldver, newver);
 
-      if (pacman_get_answer()) {
+      if (pacman_get_answer(ce->autoAurInstall)) {
         struct vstrEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", PANIFICATIE_CACHE, pname));
 
         if (shgeti(se, "validpgpkeys") >= 0) { 
@@ -431,14 +436,30 @@ void aur_makeall() {
   }
 }
 
-
-DEF_VEC(char, charv)
-
 void charv_addstr(struct charv *cv, const char *str) {
   while (*str) { vecp(cv, *str); ++str; }
 }
 
-void pacman_paccmd(char *cmd, struct pacEntry *pkgs) {
+void pacman_update_repos() {
+  char updcmd[] = "sudo pacman -Sy";
+  fprintf(stdout, "Do you want to run: %s\n", updcmd);
+
+  if (pacman_get_answer(ce->autoPacmanUpdate)) {
+    runcmd("%s", updcmd) {
+      fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+      exit(1);
+    }
+  }
+}
+
+
+
+#define COL_RED "\033[31m"
+#define COL_GREEN "\033[32m"
+#define COL_NONE ""
+#define COL_STOP "\033[0m"
+
+void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
   struct charv *chv;
   veci(charv, chv);
   charv_addstr(chv, cmd);
@@ -450,10 +471,10 @@ void pacman_paccmd(char *cmd, struct pacEntry *pkgs) {
   vecp(chv, '\0');
 
   fprintf(stdout, "Do you want to run:\n");
-  fprintf(stdout, "%s\n", chv->v);
+  fprintf(stdout, "%s%s%s\n", isatty(STDOUT_FILENO) ? col : COL_NONE, chv->v, COL_STOP);
 
-  if (pacman_get_answer()) {
-    runcmd("%s", chv->v) {
+  if (pacman_get_answer((pkgs == installablePackages) ? ce->autoPacmanInstall : ce->autoPacmanRemove)) {
+    runcmd("yes | %s", chv->v) {
       fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
       exit(1);
     }
@@ -467,7 +488,7 @@ void pacman_read_config() {
 
   veci(alpmpkgv, pacmanGroupPkgs);
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { pacman_require(*pname, 1); } /// First pass is to resolve multiple
-  parse_apkgs(); /// TODO: Check conflicts in the added packages               ///
+  if (parse_apkgs()) { exit(1); } /// TODO: Check conflicts in the added packages               ///
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { check_add_package(*pname); }  /// Providers for the same dependency
   vecforeach(pacmanGroupPkgs, alpm_pkg_t*, pkg) { check_add_package(alpm_pkg_get_name(*pkg)); }
   vecfree(pacmanGroupPkgs);
@@ -494,13 +515,15 @@ void pacman_read_config() {
 void pacman_install() {
   if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0) { fprintf(stdout, "There's nothing to do.\n"); }
   if (shlenu(installablePackages) > 0) {
-    pacman_paccmd("sudo pacman -S", installablePackages);
+    if (ce->update) {
+      pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages);
+    }
   }
   
   aur_makeall();
 
   if (shlenu(removablePackages) > 0) {
-    pacman_paccmd("sudo pacman -Rns", removablePackages);
+    pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages);
   }
 }
 

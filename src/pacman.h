@@ -33,6 +33,7 @@ struct strEntry { char *key; char *value; };
 void pacman_set_cenv(struct cenv *_ce);
 void pacman_read_config();
 void pacman_install();
+void pacman_update_repos();
 
 void pacman_require(const char *pname, uint8_t base);
 int32_t aur_require(char *pname);

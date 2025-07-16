@@ -32,20 +32,21 @@ void help() {
 #define seq(_i, _s) if (!strcmp(argv[_i], _s))
 #define carg(_short, _long, _code) else seq (i, "-" #_short) { goto arg_ ##_long; } else seq(i, "--" #_long) { arg_ ##_long:; _code; }
 void parseArgs(int argc, char **argv, struct cenv *__restrict ce) {
-  if (argc < 2) { help(); exit(0); }
+  if (argc < 1) { help(); exit(0); }
 
-       if (!strcmp(argv[1], "rebuild")) { ce->rebrun = 1; }
-  else if (!strcmp(argv[1], "run"))     { ce->rebrun = 2; }
-  else if (!strcmp(argv[1], "rebrun"))  { ce->rebrun = 3; }
-  else { fprintf(stderr, "Unrecognised verb %s!\n", argv[1]); help(); exit(1); }
-
-  for(int32_t i = 2; i < argc; ++i) {
+  for(int32_t i = 1; i < argc; ++i) {
     if (0) {}
     carg(c, config, if (i != argc - 1) { ce->configFile = argv[i + 1]; ++i; })
     carg(u, update, ce->update = 1)
     carg(d, debug, ce->debug = 1)
     carg(h, help, help(); exit(0); )
     else {
+      if (ce->rebrun == 0) {
+             if (!strcmp(argv[i], "rebuild")) { ce->rebrun = 1; continue; }
+        else if (!strcmp(argv[i], "run"))     { ce->rebrun = 2; continue; }
+        else if (!strcmp(argv[i], "rebrun"))  { ce->rebrun = 3; continue; }
+      }
+
       if (!(ce->rebrun & 2)) {
         fprintf(stderr, "Cannot run package %s when not in run or rebrun mode, skipping!\n", argv[i]);
       } else {
@@ -55,14 +56,33 @@ void parseArgs(int argc, char **argv, struct cenv *__restrict ce) {
   }
 }
 
+void cenv_create(struct cenv *__restrict ce) {
+  memset(ce, 0, sizeof(*ce));
+  ce->configFile = CONFIG_PATH;
+  veci(strv, ce->insPackages);
+  ce->autoPacmanUpdate = AUTO_PACMAN_UPDATE_REPO_CONFIRM;
+  ce->autoPacmanInstall = AUTO_PACMAN_INSTALL_CONFIRM;
+  ce->autoPacmanRemove = AUTO_PACMAN_REMOVE_CONFIRM;
+  ce->autoAurUpdate = AUTO_AUR_UPDATE_CONFIRM;
+  ce->autoAurInstall = AUTO_AUR_INSTALL_CONFIRM;
+}
+
+void cenv_destroy(struct cenv *__restrict ce) {
+  vecfree(ce->insPackages);
+  conf_free_config(ce->pc);
+}
+
 int main(int argc, char **argv) {
   struct cenv ce = {0};
-  ce.configFile = CONFIG_PATH;
-  veci(strv, ce.insPackages);
+  cenv_create(&ce);
   parseArgs(argc, argv, &ce);
   ce.pc = conf_read_panix(ce.configFile);
 
   pacman_set_cenv(&ce);
+
+  if (ce.update) {
+    pacman_update_repos();
+  }
 
   pacman_init();
 
@@ -78,9 +98,8 @@ int main(int argc, char **argv) {
 
   pacman_install();
   
-  vecfree(ce.insPackages);
-  conf_free_config(ce.pc);
   pacman_freedb();
+  cenv_destroy(&ce);
   return 0;
 }
 

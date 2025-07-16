@@ -7,6 +7,12 @@
 #define PACMAN_LOGFILE "/tmp/panificatie.log"
 #define CONFIG_PATH "./etc/panificatie.conf"
 
+#define AUTO_PACMAN_UPDATE_REPO_CONFIRM 1
+#define AUTO_PACMAN_INSTALL_CONFIRM 0
+#define AUTO_PACMAN_REMOVE_CONFIRM 0
+#define AUTO_AUR_UPDATE_CONFIRM 0
+#define AUTO_AUR_INSTALL_CONFIRM 1
+
 #define PANIFICATIE_CACHE "/var/cache/panificatie"
 static const char *const gnupg_keyservers[] = { "keys.openpgp.org", "hkps://keyserver.ubuntu.com" };
 
