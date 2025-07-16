@@ -11,7 +11,7 @@
 #define OBJF ".obj/"
 #define SRCF "src/"
 
-#define TARGET "pan"
+#define TARGET "pani"
 
 time_t __attribute((pure)) max(time_t o1, time_t o2) { return o1 > o2 ? o1 : o2; }
 #define IMAX(a, b) { (a) = max(a, b); }
@@ -129,10 +129,17 @@ void clean() {
   if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not remove "OBJF"/*!\n"); exit(1); }
 }
 
+void install() {
+  Nob_Cmd cmd = {0};
+#define runcmd(...) \
+    nob_cmd_append(&cmd, __VA_ARGS__); \
+    if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Exited with non 0 code!\n"); exit(1); }
+  runcmd("cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET)
+}
+
 void clear_screen() {
   Cmd cmd = {0};
-  nob_cmd_append(&cmd, "clear");
-  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not clear the screen\n"); exit(1); }
+  runcmd("clear");
 }
 
 int main(int argc, char **argv) {
@@ -156,6 +163,8 @@ int main(int argc, char **argv) {
       debug();
     } else if (!strcmp(argv[1], "valgrind")) {
       valgrind();
+    } else if (!strcmp(argv[1], "install")) {
+      install();
     }
   }
 

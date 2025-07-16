@@ -4,6 +4,10 @@
 
 #define shforeach(shm, res) for (size_t sl__shm ##res = shlenu(shm), res = 0; res < sl__shm ##res; ++res)
 
+static struct cenv *__restrict ce;
+
+void conf_set_cenv(struct cenv *__restrict _ce) { ce = _ce; }
+
 void parse_file(char *fname);
 
 char *readfile(char *fname, uint32_t *len) {
@@ -162,6 +166,7 @@ void process_token() {
 }
 
 char *get_rel_path(char *fname) {
+  if (fname[0] == '/') { return strdup(fname); }
   if (curfile == NULL) { return strdup(fname); }
   char *res = malloc(strlen(fname) + strlen(curfile) + 1);
   strcpy(res, curfile);
@@ -173,6 +178,9 @@ char *get_rel_path(char *fname) {
 }
 
 void parse_file(char *fname) {
+  if (ce->debug) {
+    fprintf(stdout, "Parsing file %s!\n", fname);
+  }
   char *oldf = curfile; 
   stb_lexer *oldl = lex;
   curfile = get_rel_path(fname);
@@ -214,25 +222,21 @@ struct panix_config *conf_read_panix(char *fname) {
 
   parse_file(fname);
 
-  /*
-  fprintf(stdout, "Pacman packages:\n");
-  vecforeach(pc->pacmanPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
-  fprintf(stdout, "\nAur packages:\n");
-  vecforeach(pc->aurPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
-  fprintf(stdout, "\n");
-  */
+  if (ce->debug == 2) {
+    fprintf(stdout, "Parsed pacman packages:\n");
+    vecforeach(pc->pacmanPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
+    fprintf(stdout, "Parsed aur packages:\n");
+    vecforeach(pc->aurPkgs, char *, pkg) { fprintf(stdout, "%s ", *pkg); }
+    fprintf(stdout, "\n");
+  }
 
   vecfree(statev);
   return pc;
 }
 
 void conf_free_config(struct panix_config *pc) {
-  vecforeach(pc->pacmanPkgs, char *, pkg) { 
-    free(*pkg); 
-  }
-  vecforeach(pc->aurPkgs, char *, pkg) { 
-    free(*pkg); 
-  }
+  vecforeach(pc->pacmanPkgs, char *, pkg) { free(*pkg); }
+  vecforeach(pc->aurPkgs, char *, pkg) { free(*pkg); }
   vecfree(pc->pacmanPkgs);
   vecfree(pc->aurPkgs);
   free(pc);

@@ -1,6 +1,6 @@
 #include "pacman.h"
 
-char _fbuf[1024]; int32_t _fres;
+static char _fbuf[1024]; static int32_t _fres;
 #define ifm(...) (snprintf(_fbuf, sizeof(_fbuf), __VA_ARGS__),_fbuf)
 #define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0)) // Use sth better than system
 #define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
@@ -9,7 +9,7 @@ char _fbuf[1024]; int32_t _fres;
 
 DEF_VEC(char, charv)
 
-struct cenv *ce;
+static struct cenv *ce;
 void pacman_set_cenv(struct cenv *_ce) { ce = _ce; }
 
 alpm_handle_t *alpm;

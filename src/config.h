@@ -5,7 +5,7 @@
 #define ALPM_DBPATH "/var/lib/pacman"
 #define PACMAN_CONF "/etc/pacman.conf"
 #define PACMAN_LOGFILE "/tmp/panificatie.log"
-#define CONFIG_PATH "./etc/panificatie.conf"
+#define CONFIG_PATH "/etc/panificatie.conf"
 
 /* 1 for autoYes, 0 for ask, 2 for autoNo */
 #define AUTO_PACMAN_UPDATE_REPO_CONFIRM 1

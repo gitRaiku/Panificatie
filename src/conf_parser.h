@@ -41,5 +41,6 @@ struct cenv {
   struct panix_config *pc;
   strview configFile;
 };
+void conf_set_cenv(struct cenv *__restrict _ce);
 
 #endif

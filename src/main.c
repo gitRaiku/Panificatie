@@ -15,7 +15,7 @@ void parse_cmd_package(strview pname) {
   while (*cpkg && *cpkg != '#') { ++cpkg; }
   if (*cpkg == '\0') { return; }
   if (*cpkg == '#') { *cpkg = '\0'; ++cpkg; }
-  if (!strcmp(pname, "pacman")) { pacman_require(cpkg, 1); }
+  if (!strcmp(pname, "pacman") || !strcmp(pname, "pac")) { pacman_require(cpkg, 1); }
   else if (!strcmp(pname, "aur")) { aur_require(cpkg); } 
   else { fprintf(stderr, "\033[31mUnknown package type %s for %s!\033[0m\nOnly known sources are pacman, aur e.g. pacman#gcc.\n", pname, cpkg); return; }
 }
@@ -82,10 +82,11 @@ void cenv_destroy(struct cenv *__restrict ce) {
 int main(int argc, char **argv) {
   struct cenv ce = {0};
   cenv_create(&ce);
+  pacman_set_cenv(&ce);
+  conf_set_cenv(&ce);
   parseArgs(argc, argv, &ce);
   ce.pc = conf_read_panix(ce.configFile);
 
-  pacman_set_cenv(&ce);
 
   if (ce.update) {
     pacman_update_repos();
