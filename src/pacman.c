@@ -234,6 +234,8 @@ int gdbgeti(char *str) {
 }
 
 void get_installable_removable_packages() {
+  alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
+
   shforeach(installedPackages, i) {
     // if (alpm_pkg_get_reason(installedPackages[i].value) != ALPM_PKG_REASON_EXPLICIT) { continue ; } /// TODO: Make this a flag
     if (shgeti(requiredPackages, installedPackages[i].key) < 0) {
@@ -365,13 +367,6 @@ int32_t aur_require(char *pname) {
 
   debug_exit();
   return r;
-
-
-  if (shgeti(installedPackages, pname) >= 0) { // TODO: Handle more specificity
-    r = aur_update(pname);
-  } else {
-    r = aur_firstinstall(pname);
-  }
 }
 
 int parse_apkgs() {
@@ -474,14 +469,21 @@ void pacman_update_repos() {
 #define COL_NONE ""
 #define COL_STOP "\033[0m"
 
-void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
+void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs, uint8_t isInstallNonUpdate /* This is the most retarded way to implement this */) {
   struct charv *chv;
   veci(charv, chv);
   charv_addstr(chv, cmd);
 
   shforeach(pkgs, i) { 
-    charv_addstr(chv, " ");
-    charv_addstr(chv, alpm_pkg_get_name(pkgs[i].value));
+    if (isInstallNonUpdate) {
+      if (shgeti(installedPackages, alpm_pkg_get_name(pkgs[i].value)) < 0) {
+        charv_addstr(chv, " ");
+        charv_addstr(chv, alpm_pkg_get_name(pkgs[i].value));
+      }
+    } else {
+      charv_addstr(chv, " ");
+      charv_addstr(chv, alpm_pkg_get_name(pkgs[i].value));
+    }
   }
   vecp(chv, '\0');
 
@@ -499,8 +501,6 @@ void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
 }
 
 void pacman_read_config() {
-  alpmforeach(alpm_db_get_pkgcache(alpm_get_localdb(alpm)), pkg) { shput(installedPackages, alpm_pkg_get_name(pkg->data), pkg->data); }
-
   veci(alpmpkgv, pacmanGroupPkgs);
   vecforeach(ce->pc->pacmanPkgs, char*, pname) { pacman_require(*pname, 1); } /// First pass is to resolve multiple
   if (parse_apkgs()) { exit(1); } /// TODO: Check conflicts in the added packages               ///
@@ -526,20 +526,19 @@ void pacman_install() {
 
   alpm_list_free(insPackages);
 
-
   if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0) { fprintf(stdout, "There's nothing to do.\n"); }
   if (shlenu(installablePackages) > 0) {
     if (ce->update) {
-      pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages);
+      pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages, 0);
     } else {
-      pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages);
+      pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages, 1);
     }
   }
   
   aur_makeall();
 
   if (shlenu(removablePackages) > 0) {
-    pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages);
+    pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages, 0);
   }
 }
 

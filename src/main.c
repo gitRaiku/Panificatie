@@ -16,7 +16,8 @@ void parse_cmd_package(strview pname) {
   if (*cpkg == '\0') { return; }
   if (*cpkg == '#') { *cpkg = '\0'; ++cpkg; }
   if (!strcmp(pname, "pacman") || !strcmp(pname, "pac")) { pacman_require(cpkg, 1); }
-  else if (!strcmp(pname, "aur")) { aur_require(cpkg); } 
+  else if (!strcmp(pname, "aur")) { 
+    aur_require(cpkg); } 
   else { fprintf(stderr, "\033[31mUnknown package type %s for %s!\033[0m\nOnly known sources are pacman, aur e.g. pacman#gcc.\n", pname, cpkg); return; }
 }
 
@@ -37,7 +38,7 @@ void help() {
 
 #define seq(_i, _s) if (!strcmp(argv[_i], _s))
 #define carg(_short, _long, _code) else seq (i, "-" #_short) { goto arg_ ##_long; } else seq(i, "--" #_long) { arg_ ##_long:; _code; }
-void parseArgs(int argc, char **argv, struct cenv *__restrict ce) {
+void parse_args(int argc, char **argv, struct cenv *__restrict ce) {
   if (argc < 1) { help(); exit(0); }
 
   for(int32_t i = 1; i < argc; ++i) {
@@ -51,7 +52,7 @@ void parseArgs(int argc, char **argv, struct cenv *__restrict ce) {
 
     carg(h, help, help(); exit(0); )
     else {
-      if (ce->rebrun == 1 && strcmp(argv[i], "run")) {
+      if (ce->rebrun == 1 && !strcmp(argv[i], "run")) {
         ce->rebrun = 2; continue;
       } else {
         vecp(ce->insPackages, argv[i]);
@@ -82,7 +83,7 @@ int main(int argc, char **argv) {
   cenv_create(&ce);
   pacman_set_cenv(&ce);
   conf_set_cenv(&ce);
-  parseArgs(argc, argv, &ce);
+  parse_args(argc, argv, &ce);
   ce.pc = conf_read_panix(ce.configFile);
 
 
