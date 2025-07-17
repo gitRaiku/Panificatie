@@ -340,7 +340,7 @@ int32_t aur_add(char *pname) {
 
 int32_t aur_update(char *pname) { /// TODO: Better error handling
   fprintf(stdout, "Update aur package %s?\n", pname);
-  if (ce->update && pacman_get_answer(ce->autoAurUpdate)) {
+  if (pacman_get_answer(ce->autoAurUpdate)) {
     runcmd("cd %s/aur_%s && git stash && git pull", PANIFICATIE_CACHE, pname) {
       fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
       return 1;
@@ -374,7 +374,11 @@ int32_t aur_require(char *pname) {
 
   int32_t r;
   if (checkexists(aurpath("."))) {
-    r = aur_update(pname);
+    if (ce->update) {
+      r = aur_update(pname);
+    } else {
+      r = aur_add(pname);
+    }
   } else {
     r = aur_firstinstall(pname);
   }
