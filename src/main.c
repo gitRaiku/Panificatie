@@ -21,7 +21,10 @@ void parse_cmd_package(strview pname) {
 }
 
 void help() {
-  fprintf(stdout, "Usage: panificatie [rebuild|run|rebrun] [options] [source#package]\n");
+  fprintf(stdout, "Usage: panificatie [run] [options] [source#package]\n");
+  fprintf(stdout, "Verbs:\n");
+  fprintf(stdout, "  run: Ignores the config file, letting you install temporary packages\n");
+  fprintf(stdout, "\n");
   fprintf(stdout, "Options:\n");
   fprintf(stdout, "  -c --config : Set config file\n");
   fprintf(stdout, "  -u --update : Update packages\n");
@@ -48,14 +51,8 @@ void parseArgs(int argc, char **argv, struct cenv *__restrict ce) {
 
     carg(h, help, help(); exit(0); )
     else {
-      if (ce->rebrun == 0) {
-             if (!strcmp(argv[i], "rebuild")) { ce->rebrun = 1; continue; }
-        else if (!strcmp(argv[i], "run"))     { ce->rebrun = 2; continue; }
-        else if (!strcmp(argv[i], "rebrun"))  { ce->rebrun = 3; continue; }
-      }
-
-      if (!(ce->rebrun & 2)) {
-        fprintf(stderr, "Cannot run package %s when not in run or rebrun mode, skipping!\n", argv[i]);
+      if (ce->rebrun == 1 && strcmp(argv[i], "run")) {
+        ce->rebrun = 2; continue;
       } else {
         vecp(ce->insPackages, argv[i]);
       }
@@ -67,6 +64,7 @@ void cenv_create(struct cenv *__restrict ce) {
   memset(ce, 0, sizeof(*ce));
   ce->configFile = CONFIG_PATH;
   veci(strv, ce->insPackages);
+  ce->rebrun = 1;
   ce->autoPacmanUpdate = AUTO_PACMAN_UPDATE_REPO_CONFIRM;
   ce->autoPacmanInstall = AUTO_PACMAN_INSTALL_CONFIRM;
   ce->autoPacmanRemove = AUTO_PACMAN_REMOVE_CONFIRM;
