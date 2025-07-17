@@ -50,3 +50,4 @@ A C Compiler, pacman, git and coreutils.
 
 Add support for git and arbitrary packages
 Add support for configuration of packages
+Improve UX

@@ -33,4 +33,19 @@ typedef char* strview;
 
 DEF_VEC(char *, strv)
 
+struct depEntry { char *key; struct pkgv *value; };
+struct strEntry { char *key; char *value; };
+
+struct cenv {
+  uint8_t update;
+  uint8_t debug; uint32_t curIndent;
+  uint8_t rebrun;
+  uint8_t autoPacmanUpdate, autoPacmanInstall, autoPacmanRemove;
+  uint8_t autoAurUpdate, autoAurInstall;
+  struct strv *insPackages;
+  struct strEntry *ignoredPkgs;
+  struct panix_config *pc;
+  strview configFile;
+};
+
 #endif

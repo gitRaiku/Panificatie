@@ -31,16 +31,6 @@ struct vstrEntry { char *key; struct strv *value; }; /// TODO: Merge into one bu
 struct vstrEntry *conf_read_eq(char *fname);         /// This code is already dumb 
 void conf_free_eq(struct vstrEntry *se);             /// Enough so i'll do it later
 
-struct cenv {
-  uint8_t update;
-  uint8_t debug; uint32_t curIndent;
-  uint8_t rebrun;
-  uint8_t autoPacmanUpdate, autoPacmanInstall, autoPacmanRemove;
-  uint8_t autoAurUpdate, autoAurInstall;
-  struct strv *insPackages;
-  struct panix_config *pc;
-  strview configFile;
-};
 void conf_set_cenv(struct cenv *__restrict _ce);
 
 #endif

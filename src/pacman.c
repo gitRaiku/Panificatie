@@ -21,7 +21,10 @@ struct pacEntry *removablePackages = NULL;
 
 struct pacEntry *requiredPackages = NULL;
 struct pacEntry *installablePackages = NULL;
+
 struct alpmpkgv *pacmanGroupPkgs = NULL;
+
+struct strEntry *aurRequiredPackages = NULL;
 struct strEntry *aurInstallablePackages = NULL;
 
 void debug_pname(const char *const pname, uint8_t aur) {
@@ -245,9 +248,19 @@ void get_installable_removable_packages() {
     rp_fin:;
   }
 
+  if (ce->debug == 2) { fprintf(stdout, "Installable Packages:\n"); }
   shforeach(requiredPackages, i) {
     if (shgeti(installedPackages, alpm_pkg_get_name(requiredPackages[i].value)) < 0) {
+      if (ce->debug == 2) { fprintf(stdout, "  %s\n", alpm_pkg_get_name(requiredPackages[i].value)); }
       shput(installablePackages, alpm_pkg_get_name(requiredPackages[i].value), requiredPackages[i].value);
+    }
+  }
+
+  if (ce->debug == 2) { fprintf(stdout, "Installable Aur Packages:\n"); }
+  shforeach(aurRequiredPackages, i) {
+    if (shgeti(installedPackages, aurRequiredPackages[i].key) < 0) {
+      if (ce->debug == 2) { fprintf(stdout, "  %s [ver %s]\n", aurRequiredPackages[i].key, aurRequiredPackages[i].value); }
+      shput(aurInstallablePackages, aurRequiredPackages[i].key, aurRequiredPackages[i].value);
     }
   }
 }
@@ -299,7 +312,7 @@ int32_t aur_add(char *pname) {
     return 1;
   }
 
-  if (shgeti(aurInstallablePackages, pname) >= 0) { return 0; }
+  if (shgeti(aurRequiredPackages, pname) >= 0) { return 0; }
 
   struct vstrEntry *se = conf_read_eq(aurpath(".SRCINFO"));
 
@@ -316,7 +329,7 @@ int32_t aur_add(char *pname) {
   if (shgeti(se, "pkgver") >= 0 && shgeti(se, "pkgrel") >= 0) { /// This is never to be optimized
     char *pkgver = shget(se, "pkgver")->v[0];
     char *pkgrel = shget(se, "pkgrel")->v[0];
-    shput(aurInstallablePackages, strdup(pname), 
+    shput(aurRequiredPackages, strdup(pname), 
         strdup(ifm("%s-%s", pkgver, pkgrel)));
   } else { return 1; }
 
@@ -325,7 +338,8 @@ int32_t aur_add(char *pname) {
   return 0;
 }
 
-int32_t aur_update(char *pname) {
+int32_t aur_update(char *pname) { /// TODO: Better error handling
+  fprintf(stdout, "Update aur package %s?\n", pname);
   if (ce->update && pacman_get_answer(ce->autoAurUpdate)) {
     runcmd("cd %s/aur_%s && git stash && git pull", PANIFICATIE_CACHE, pname) {
       fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
@@ -336,7 +350,7 @@ int32_t aur_update(char *pname) {
   return aur_add(pname);
 }
 
-int32_t aur_firstinstall(char *pname) {
+int32_t aur_firstinstall(char *pname) { /// TODO: Better error handling
   if (checkexists(aurpath("."))) {
     fprintf(stderr, "Repository %s at %s already exists yet is not in the database, removing!\n", pname, _fbuf);
     runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
@@ -416,7 +430,9 @@ void aur_makeall() {
   shforeach(aurInstallablePackages, i) {
     char *pname = aurInstallablePackages[i].key;
     const char *oldver = "";
-    if (shgeti(installedPackages, pname) >= 0) { oldver = alpm_pkg_get_version(shget(installedPackages, pname)); }
+    if (shgeti(installedPackages, pname) >= 0) { 
+      oldver = alpm_pkg_get_version(shget(installedPackages, pname)); 
+    }
 
     const char *newver = shget(aurInstallablePackages, pname);
     //fprintf(stdout, "Package %s: cache[%s] installed[%s]\n", pname, oldver, newver);
@@ -469,23 +485,21 @@ void pacman_update_repos() {
 #define COL_NONE ""
 #define COL_STOP "\033[0m"
 
-void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs, uint8_t isInstallNonUpdate /* This is the most retarded way to implement this */) {
+void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
   struct charv *chv;
   veci(charv, chv);
   charv_addstr(chv, cmd);
 
+  uint8_t doRun = 0;
   shforeach(pkgs, i) { 
-    if (isInstallNonUpdate) {
-      if (shgeti(installedPackages, alpm_pkg_get_name(pkgs[i].value)) < 0) {
-        charv_addstr(chv, " ");
-        charv_addstr(chv, alpm_pkg_get_name(pkgs[i].value));
-      }
-    } else {
+    if (shgeti(ce->ignoredPkgs, alpm_pkg_get_name(pkgs[i].value)) < 0) {
+      doRun = 1;
       charv_addstr(chv, " ");
       charv_addstr(chv, alpm_pkg_get_name(pkgs[i].value));
     }
   }
   vecp(chv, '\0');
+  if (!doRun) { vecfree(chv); return; }
 
   fprintf(stdout, "Do you want to run:\n");
   fprintf(stdout, "%s%s%s\n", isatty(STDOUT_FILENO) ? col : COL_NONE, chv->v, COL_STOP);
@@ -526,19 +540,18 @@ void pacman_install() {
 
   alpm_list_free(insPackages);
 
-  if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0) { fprintf(stdout, "There's nothing to do.\n"); }
-  if (shlenu(installablePackages) > 0) {
-    if (ce->update) {
-      pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages, 0);
-    } else {
-      pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages, 1);
-    }
+  if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0 && !ce->update) { fprintf(stdout, "There's nothing to do.\n"); }
+
+  if (ce->update) {
+    pacman_paccmd("sudo pacman -Su", COL_GREEN, requiredPackages);
+  } else if (shlenu(installablePackages) > 0) {
+    pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages);
   }
   
   aur_makeall();
 
   if (shlenu(removablePackages) > 0) {
-    pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages, 0);
+    pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages);
   }
 }
 
@@ -555,13 +568,14 @@ void pacman_freedb() {
     vecfree(pkgdb[i].value);
   }
 
-  shforeach(aurInstallablePackages, i) { free(aurInstallablePackages[i].key); free(aurInstallablePackages[i].value); }
+  shforeach(aurRequiredPackages, i) { free(aurRequiredPackages[i].key); free(aurRequiredPackages[i].value); }
   
   shfree(removablePackages);
   shfree(installablePackages);
   shfree(installedPackages);
   shfree(requiredPackages);
   shfree(aurInstallablePackages);
+  shfree(aurRequiredPackages);
   shfree(pkgdb);
   ENEG(alpm_release(alpm), "Could not release alpm!");
 }

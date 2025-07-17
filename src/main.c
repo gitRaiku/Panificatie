@@ -28,6 +28,7 @@ void help() {
   fprintf(stdout, "\n");
   fprintf(stdout, "Options:\n");
   fprintf(stdout, "  -c --config : Set config file\n");
+  fprintf(stdout, "  -i --ignore : Add ignored package\n");
   fprintf(stdout, "  -u --update : Update packages\n");
   fprintf(stdout, "  -v --verbose: Make verbose logs\n");
   fprintf(stdout, "  -d --debug  : Make debug logs\n");
@@ -44,6 +45,7 @@ void parse_args(int argc, char **argv, struct cenv *__restrict ce) {
   for(int32_t i = 1; i < argc; ++i) {
     if (0) {}
     carg(c, config, if (i != argc - 1) { ce->configFile = argv[i + 1]; ++i; })
+    carg(i, ignore, if (i != argc - 1) { shput(ce->ignoredPkgs, argv[i + 1], argv[i + 1]); })
     carg(u, update, ce->update = 1)
     carg(v, verbose, ce->debug = 1)
     carg(d, debug, ce->debug = 2)
@@ -76,6 +78,7 @@ void cenv_create(struct cenv *__restrict ce) {
 void cenv_destroy(struct cenv *__restrict ce) {
   vecfree(ce->insPackages);
   conf_free_config(ce->pc);
+  shfree(ce->ignoredPkgs);
 }
 
 int main(int argc, char **argv) {
@@ -85,7 +88,6 @@ int main(int argc, char **argv) {
   conf_set_cenv(&ce);
   parse_args(argc, argv, &ce);
   ce.pc = conf_read_panix(ce.configFile);
-
 
   if (ce.update) {
     pacman_update_repos();
@@ -97,10 +99,8 @@ int main(int argc, char **argv) {
     pacman_read_config();
   }
 
-  if (ce.rebrun & 2) {
-    vecforeach(ce.insPackages, strview, pkg) {
-      parse_cmd_package(*pkg);
-    }
+  vecforeach(ce.insPackages, strview, pkg) {
+    parse_cmd_package(*pkg);
   }
 
   pacman_install();

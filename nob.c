@@ -134,7 +134,17 @@ void install() {
 #define runcmd(...) \
     nob_cmd_append(&cmd, __VA_ARGS__); \
     if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Exited with non 0 code!\n"); exit(1); }
-  runcmd("cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET)
+
+  if (getuid() == 0) {
+    runcmd("cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET)
+  } else {
+    fprintf(stdout, "Elevate priviledges with sudo to install? y/n\n");
+    char a[10];
+    fgets(a, sizeof(a), stdin);
+    if (a[0] == 'y' || a[0] == 'Y') {
+      runcmd("sudo", "cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET)
+    }
+  }
 }
 
 void clear_screen() {
