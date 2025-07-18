@@ -547,14 +547,18 @@ void pacman_install() {
   if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0 && !ce->update) { fprintf(stdout, "There's nothing to do.\n"); }
 
   if (ce->update) {
-    pacman_paccmd("sudo pacman -Su", COL_GREEN, requiredPackages);
+    if (ce->rebrun & 2) {
+      pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages);
+    } else {
+      pacman_paccmd("sudo pacman -Su", COL_GREEN, requiredPackages);
+    }
   } else if (shlenu(installablePackages) > 0) {
     pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages);
   }
   
   aur_makeall();
 
-  if (shlenu(removablePackages) > 0) {
+  if (shlenu(removablePackages) > 0 && (ce->rebrun & 1)) {
     pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages);
   }
 }
