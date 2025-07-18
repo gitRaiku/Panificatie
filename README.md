@@ -3,7 +3,7 @@
 A worse nix for a better system (arch linux)
 
 # Features
-All your installed packages will be configured in ``/etc/panificatie.conf``
+The ``panificatie`` package can be configures in ``src/config.h`` and all your installed packages will be configured in ``/etc/panificatie.conf``
 
 Running
 ```
@@ -48,6 +48,7 @@ A C Compiler, pacman, git and coreutils.
 
 # Todo
 
+Add support for patching aur packages
 Add support for git and arbitrary packages
 Add support for configuration of packages
 Improve UX
