@@ -113,7 +113,7 @@ void rebuild() {
 recipe(run, runcmd("./"TARGET, "run", "pacman#gcc"))
 recipe(debug, runcmd("gdb", "-q", "--args", "./"TARGET, "-c", RUN_FILE))
 recipe(valgrind, runcmd("valgrind", "--leak-check=full", "-s", "./"TARGET, "-c", RUN_FILE))
-recipe(clean, "sh", "-c", "rm "OBJF"*")
+recipe(clean, runcmd("sh", "-c", "rm "OBJF"*"))
 recipe(install, 
   if (getuid() == 0) {
     runcmd("cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET)
