@@ -104,53 +104,27 @@ void rebuild() {
   vecfree(files);
 }
 
-void run() {
-  Nob_Cmd cmd = {0};
-  // nob_cmd_append(&cmd, "./"TARGET, "rebuild", "-c", RUN_FILE);
-  nob_cmd_append(&cmd, "./"TARGET, "run", "pacman#gcc");
-  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
-}
-
-void debug() {
-  Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "gdb", "-q", "--args", "rebuild", "./"TARGET, "-c", RUN_FILE);
-  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not run %s!\n", TARGET); exit(1); }
-}
-
-void valgrind() {
-  Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "valgrind", "--leak-check=full", "-s", "rebuild", "./"TARGET, "-c", RUN_FILE);
-  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not valgrind %s!\n", TARGET); exit(1); }
-}
-
-void clean() {
-  Nob_Cmd cmd = {0};
-  nob_cmd_append(&cmd, "sh", "-c", "rm "OBJF"*"); /// TODO: What the fuck
-  if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Could not remove "OBJF"/*!\n"); exit(1); }
-}
-
-void install() {
-  Nob_Cmd cmd = {0};
 #define runcmd(...) \
     nob_cmd_append(&cmd, __VA_ARGS__); \
     if (!nob_cmd_run_sync(cmd)) { fprintf(stderr, "Exited with non 0 code!\n"); exit(1); }
+#define recipe(_name, ...) \
+  void _name(void) { Nob_Cmd cmd = {0}; __VA_ARGS__; }
 
+recipe(run, runcmd("./"TARGET, "run", "pacman#gcc"))
+recipe(debug, runcmd("gdb", "-q", "--args", "./"TARGET, "-c", RUN_FILE))
+recipe(valgrind, runcmd("valgrind", "--leak-check=full", "-s", "./"TARGET, "-c", RUN_FILE))
+recipe(clean, "sh", "-c", "rm "OBJF"*")
+recipe(install, 
   if (getuid() == 0) {
     runcmd("cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET)
   } else {
     fprintf(stdout, "Elevate priviledges with sudo to install? y/n\n");
     char a[10];
     fgets(a, sizeof(a), stdin);
-    if (a[0] == 'y' || a[0] == 'Y') {
-      runcmd("sudo", "cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET)
-    }
+    if (a[0] == 'y' || a[0] == 'Y') { runcmd("sudo", "cp", "-f", "./"TARGET, "/usr/local/bin/"TARGET) }
   }
-}
-
-void clear_screen() {
-  Cmd cmd = {0};
-  runcmd("clear");
-}
+)
+recipe(clear_screen, runcmd("clear"))
 
 int main(int argc, char **argv) {
   clear_screen();

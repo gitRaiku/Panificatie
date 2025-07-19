@@ -215,7 +215,7 @@ rq_add_provides:;
   if (p->t == PKG_ALPM_FIXED) { return; }
   p->t = PKG_ALPM_FIXED;
   if (shgeti(requiredPackages, pname) <= 0) {
-    shput(requiredPackages, strdup(pname), p->d);
+    shput(requiredPackages, alpm_pkg_get_name(p->d), p->d);
   }
 
   alpmforeach(alpm_pkg_get_provides(p->d), dep) {
