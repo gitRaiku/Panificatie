@@ -241,7 +241,7 @@ void get_installable_removable_packages() {
 
   shforeach(installedPackages, i) {
     // if (alpm_pkg_get_reason(installedPackages[i].value) != ALPM_PKG_REASON_EXPLICIT) { continue ; } /// TODO: Make this a flag
-    if (shgeti(requiredPackages, installedPackages[i].key) < 0) {
+    if (ce->update || (shgeti(requiredPackages, installedPackages[i].key) < 0)) {
       vecforeach(ce->pc->aurPkgs, char*, apkg) { if (!strcmp(installedPackages[i].key, *apkg)) { goto rp_fin; } }
       shput(removablePackages, installedPackages[i].key, installedPackages[i].value);
     }
@@ -258,7 +258,7 @@ void get_installable_removable_packages() {
 
   if (ce->debug == 2) { fprintf(stdout, "Installable Aur Packages:\n"); }
   shforeach(aurRequiredPackages, i) {
-    if (shgeti(installedPackages, aurRequiredPackages[i].key) < 0) {
+    if (ce->update || (shgeti(installedPackages, aurRequiredPackages[i].key) < 0)) {
       if (ce->debug == 2) { fprintf(stdout, "  %s [ver %s]\n", aurRequiredPackages[i].key, aurRequiredPackages[i].value); }
       shput(aurInstallablePackages, aurRequiredPackages[i].key, aurRequiredPackages[i].value);
     }
@@ -441,7 +441,7 @@ void aur_makeall() {
     const char *newver = shget(aurInstallablePackages, pname);
     //fprintf(stdout, "Package %s: cache[%s] installed[%s]\n", pname, oldver, newver);
     if (*oldver == '\0' || (alpm_pkg_vercmp(newver, oldver) == 1)) {
-      fprintf(stdout, "Do you want to install %s cached[%s] installed[%s]?\n", pname, oldver, newver);
+      fprintf(stdout, "Do you want to install %s oldver[%s] newver[%s]?\n", pname, oldver, newver);
 
       if (pacman_get_answer(ce->autoAurInstall)) {
         struct vstrEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", PANIFICATIE_CACHE, pname));
