@@ -257,10 +257,16 @@ void get_installable_removable_packages() {
   }
 
   if (ce->debug == 2) { fprintf(stdout, "Installable Aur Packages:\n"); }
-  shforeach(aurRequiredPackages, i) {
-    if (ce->update || (shgeti(installedPackages, aurRequiredPackages[i].key) < 0)) {
-      if (ce->debug == 2) { fprintf(stdout, "  %s [ver %s]\n", aurRequiredPackages[i].key, aurRequiredPackages[i].value); }
-      shput(aurInstallablePackages, aurRequiredPackages[i].key, aurRequiredPackages[i].value);
+  /// Order is package then dependencies (to avoid any cycles) but installation order is reversed for dependencies
+  {
+    size_t shl = shlenu(aurRequiredPackages);
+    int32_t i;
+    shforeach(aurRequiredPackages, starti) {
+      i = shl - starti - 1;
+      if (ce->update || (shgeti(installedPackages, aurRequiredPackages[i].key) < 0)) {
+        if (ce->debug == 2) { fprintf(stdout, "  %s [ver %s]\n", aurRequiredPackages[i].key, aurRequiredPackages[i].value); }
+        shput(aurInstallablePackages, aurRequiredPackages[i].key, aurRequiredPackages[i].value);
+      }
     }
   }
 }
@@ -295,6 +301,7 @@ char *str_find_next(char *str, char c) {
 }
 
 void aur_adddep(char *pname) {
+  if (ce->debug) { fprintf(stdout, "Aur_addep %s\n", pname); }
   char *ns = NULL; /// Get rid of version specifiers TODO: Handle them
   if ((ns = str_find_next(pname, '>')) != NULL) { *ns = '\0'; }
   if ((ns = str_find_next(pname, '=')) != NULL) { *ns = '\0'; }
@@ -303,6 +310,7 @@ void aur_adddep(char *pname) {
 }
 
 int32_t aur_add(char *pname) {
+  if (ce->debug) { fprintf(stdout, "Aur_add %s\n", pname); }
   if (!checkexists(aurpath(".SRCINFO"))) {
     fprintf(stderr, "Could not find SRCINFO for %s at %s!\n", pname, _fbuf);
     runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
@@ -312,9 +320,18 @@ int32_t aur_add(char *pname) {
     return 1;
   }
 
-  if (shgeti(aurRequiredPackages, pname) >= 0) { return 0; }
-
   struct vstrEntry *se = conf_read_eq(aurpath(".SRCINFO"));
+
+  if (shgeti(aurRequiredPackages, pname) >= 0) { conf_free_eq(se); return 0; }
+
+  /// Order is package then dependencies (to avoid any cycles) but installation order is reversed for dependencies
+
+  if (shgeti(se, "pkgver") >= 0 && shgeti(se, "pkgrel") >= 0) { /// This is never to be optimized
+    char *pkgver = shget(se, "pkgver")->v[0];
+    char *pkgrel = shget(se, "pkgrel")->v[0];
+    shput(aurRequiredPackages, strdup(pname), 
+        strdup(ifm("%s-%s", pkgver, pkgrel)));
+  } else { conf_free_eq(se); return 1; }
 
   if (shgeti(se, "depends") >= 0) { 
     struct strv *ce = shget(se, "depends"); 
@@ -325,13 +342,6 @@ int32_t aur_add(char *pname) {
     struct strv *ce = shget(se, "makedepends"); 
     vecforeach(ce, char*, str) { aur_adddep(*str); } 
   }
-
-  if (shgeti(se, "pkgver") >= 0 && shgeti(se, "pkgrel") >= 0) { /// This is never to be optimized
-    char *pkgver = shget(se, "pkgver")->v[0];
-    char *pkgrel = shget(se, "pkgrel")->v[0];
-    shput(aurRequiredPackages, strdup(pname), 
-        strdup(ifm("%s-%s", pkgver, pkgrel)));
-  } else { return 1; }
 
   conf_free_eq(se);
 

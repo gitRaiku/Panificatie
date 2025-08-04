@@ -82,6 +82,8 @@ void cenv_destroy(struct cenv *__restrict ce) {
 }
 
 int main(int argc, char **argv) {
+  if (getuid() == 0) { fprintf(stderr, "Panificatie needs to not be run as root!\n"); return 1; }
+
   struct cenv ce = {0};
   cenv_create(&ce);
   pacman_set_cenv(&ce);
