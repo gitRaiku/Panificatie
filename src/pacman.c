@@ -3,7 +3,7 @@
 static char _fbuf[1024]; static int32_t _fres;
 #define ifm(...) (snprintf(_fbuf, sizeof(_fbuf), __VA_ARGS__),_fbuf)
 #define runcmd(...) if ((_fres=system(ifm(__VA_ARGS__)) != 0)) // Use sth better than system
-#define aurpath(post) ifm("%s/aur_%s/" post, PANIFICATIE_CACHE, pname)
+#define aurpath(post) ifm("%s/aur_%s/" post, ce->cachePath, pname)
 
 #define shforeach(shm, res) for (size_t sl__shm ##res = shlenu(shm), res = 0; res < sl__shm ##res; ++res)
 
@@ -96,6 +96,13 @@ void pacman_init() {
     }
     alpmforeach(alpm_db_get_pkgcache(i->data), j) {
       db_insert_pkg(j->data);
+    }
+  }
+
+  if (!checkexists(ce->cachePath)) {
+    fprintf(stdout, "Running `mkdir %s`\n", ce->cachePath);
+    runcmd("mkdir %s", ce->cachePath) {
+      fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres); exit(1);
     }
   }
 
@@ -313,7 +320,7 @@ int32_t aur_add(char *pname) {
   if (ce->debug) { fprintf(stdout, "Aur_add %s\n", pname); }
   if (!checkexists(aurpath(".SRCINFO"))) {
     fprintf(stderr, "Could not find SRCINFO for %s at %s!\n", pname, _fbuf);
-    runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
+    runcmd("echo rm -rf %s/aur_%s", ce->cachePath, pname) {
       fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres); return 1;
     }
 
@@ -351,8 +358,8 @@ int32_t aur_add(char *pname) {
 int32_t aur_update(char *pname) { /// TODO: Better error handling
   fprintf(stdout, "Update aur package %s?\n", pname);
   if (pacman_get_answer(ce->autoAurUpdate)) {
-    runcmd("cd %s/aur_%s && git stash && git pull", PANIFICATIE_CACHE, pname) {
-      fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+    runcmd("cd %s/aur_%s && git stash && git pull", ce->cachePath, pname) {
+      fprintf(stderr, "Running `%s` failed with %i!\n", _fbuf, _fres);
       return 1;
     }
   }
@@ -363,15 +370,15 @@ int32_t aur_update(char *pname) { /// TODO: Better error handling
 int32_t aur_firstinstall(char *pname) { /// TODO: Better error handling
   if (checkexists(aurpath("."))) {
     fprintf(stderr, "Repository %s at %s already exists yet is not in the database, removing!\n", pname, _fbuf);
-    runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
+    runcmd("echo rm -rf %s/aur_%s", ce->cachePath, pname) {
       fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres); return 1;
     }
   }
 
-  runcmd("cd %s && git clone --depth=1 https://aur.archlinux.org/%s aur_%s", PANIFICATIE_CACHE, pname, pname) {
-    fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
-    fprintf(stderr, "Removing %s/%s!\n", PANIFICATIE_CACHE, pname);
-    runcmd("echo rm -rf %s/aur_%s", PANIFICATIE_CACHE, pname) {
+  runcmd("cd %s && git clone --depth=1 https://aur.archlinux.org/%s aur_%s", ce->cachePath, pname, pname) {
+    fprintf(stderr, "Running `%s` failed with %i!\n", _fbuf, _fres);
+    fprintf(stderr, "Removing %s/%s!\n", ce->cachePath, pname);
+    runcmd("echo rm -rf %s/aur_%s", ce->cachePath, pname) {
       fprintf(stderr, "Could not run %s failed with %i!\n", _fbuf, _fres);
     }
     return 1;
@@ -398,8 +405,8 @@ int32_t aur_require(char *pname) {
 }
 
 int parse_apkgs() {
-  if (!checkexists(PANIFICATIE_CACHE)) {
-    fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
+  if (!checkexists(ce->cachePath)) {
+    fprintf(stderr, "Cannot enter %s for it does not exist!\n", ce->cachePath);
     return 1;
   }
 
@@ -407,10 +414,10 @@ int parse_apkgs() {
   return 0;
 }
 
-#define GNUPGHOME ifm(PANIFICATIE_CACHE"/.gnupg-%i",getuid())
+#define GNUPGHOME ifm("%s/.gnupg-%i", ce->cachePath,getuid())
 int32_t aur_make(char *pname) {
-  runcmd("cd %s/aur_%s && yes | GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i makepkg -sci", PANIFICATIE_CACHE, pname, getuid()) {
-    fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+  runcmd("cd %s/aur_%s && yes | GNUPGHOME=%s/.gnupg-%i makepkg -sci", ce->cachePath, pname, ce->cachePath, getuid()) {
+    fprintf(stderr, "Running `%s` failed with %i!\n", _fbuf, _fres);
     return 1;
   }
 
@@ -425,8 +432,8 @@ void aur_initgpg() {
   if (!checkexists(GNUPGHOME)) {
     ENEZ(mkdir(GNUPGHOME, 0700), "Could not create gpg directory at %s", GNUPGHOME);
   }
-  FILE *__restrict gpgconf = fopen(ifm(PANIFICATIE_CACHE"/.gnupg-%i/gpg.conf",getuid()), "w");
-  ENULL(gpgconf, "Could not open gpg conf at %s", ifm(PANIFICATIE_CACHE"/.gnupg-%i/gpg.conf",getuid()));
+  FILE *__restrict gpgconf = fopen(ifm("%s/.gnupg-%i/gpg.conf", ce->cachePath, getuid()), "w");
+  ENULL(gpgconf, "Could not open gpg conf at %s", ifm("%s/.gnupg-%i/gpg.conf", ce->cachePath, getuid()));
   svecforeach(gnupg_keyservers, const char* const, ksrv) {
     fprintf(gpgconf, "keyserver \"%s\"\n", *ksrv);
   }
@@ -434,7 +441,7 @@ void aur_initgpg() {
 }
 
 void aur_makeall() {
-  EZERO(checkexists(PANIFICATIE_CACHE), "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
+  EZERO(checkexists(ce->cachePath), "Cannot enter %s for it does not exist", ce->cachePath);
 
   aur_initgpg();
 
@@ -451,14 +458,14 @@ void aur_makeall() {
       fprintf(stdout, "Do you want to install %s oldver[%s] newver[%s]?\n", pname, oldver, newver);
 
       if (pacman_get_answer(ce->autoAurInstall)) {
-        struct vstrEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", PANIFICATIE_CACHE, pname));
+        struct vstrEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", ce->cachePath, pname));
 
         if (shgeti(se, "validpgpkeys") >= 0) { 
           struct strv *cce = shget(se, "validpgpkeys"); 
           vecforeach(cce, char*, str) { 
-            runcmd("GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --list-keys %s &> /dev/null", getuid(), *str) { // Key not found; 
-              fprintf(stdout, "GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --recv-keys %s\n", getuid(), *str);
-              runcmd("GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --recv-keys %s", getuid(), *str) { 
+            runcmd("GNUPGHOME=%s/.gnupg-%i gpg --list-keys %s &> /dev/null", ce->cachePath, getuid(), *str) { // Key not found; 
+              fprintf(stdout, "GNUPGHOME=%s/.gnupg-%i gpg --recv-keys %s\n", ce->cachePath, getuid(), *str);
+              runcmd("GNUPGHOME=%s/.gnupg-%i gpg --recv-keys %s", ce->cachePath, getuid(), *str) { 
                 fprintf(stderr, "Could not import gpg key %s!\n", *str);
                 if (ce->exitOnFail) { exit(1); }
               }
@@ -484,7 +491,7 @@ void pacman_update_repos() {
 
   if (pacman_get_answer(ce->autoPacmanUpdate)) {
     runcmd("%s", updcmd) {
-      fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+      fprintf(stderr, "Running `%s` failed with %i!\n", _fbuf, _fres);
       exit(1);
     }
   }
@@ -518,7 +525,7 @@ uint8_t pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
 
   if (pacman_get_answer((pkgs == installablePackages) ? ce->autoPacmanInstall : ce->autoPacmanRemove)) {
     runcmd("yes | %s", chv->v) {
-      fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
+      fprintf(stderr, "Running `%s` failed with %i!\n", _fbuf, _fres);
       vecfree(chv);
       return 1;
     }

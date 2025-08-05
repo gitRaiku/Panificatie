@@ -47,6 +47,7 @@ struct cenv {
   struct strEntry *ignoredPkgs;
   struct panix_config *pc;
   strview configFile;
+  char *cachePath;
 };
 
 #endif

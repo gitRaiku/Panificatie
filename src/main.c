@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <pwd.h>
 
 #include "config.h"
 #include "util.h"
@@ -28,6 +29,7 @@ void help() {
   fprintf(stdout, "\n");
   fprintf(stdout, "Options:\n");
   fprintf(stdout, "  -c --config : Set config file\n");
+  fprintf(stdout, "  -C --cache  : Set cache path\n");
   fprintf(stdout, "  -i --ignore : Add ignored package\n");
   fprintf(stdout, "  -u --update : Update packages\n");
   fprintf(stdout, "  -v --verbose: Make verbose logs\n");
@@ -45,6 +47,7 @@ void parse_args(int argc, char **argv, struct cenv *__restrict ce) {
   for(int32_t i = 1; i < argc; ++i) {
     if (0) {}
     carg(c, config, if (i != argc - 1) { ce->configFile = argv[i + 1]; ++i; })
+    carg(C, cache,  if (i != argc - 1) { free(ce->cachePath); ce->cachePath = strdup(argv[i + 1]); ++i; })
     carg(i, ignore, if (i != argc - 1) { shput(ce->ignoredPkgs, argv[i + 1], argv[i + 1]); })
     carg(u, update, ce->update = 1)
     carg(v, verbose, ce->debug = 1)
@@ -74,11 +77,25 @@ void cenv_create(struct cenv *__restrict ce) {
   ce->autoAurUpdate = AUTO_AUR_UPDATE_CONFIRM;
   ce->autoAurInstall = AUTO_AUR_INSTALL_CONFIRM;
   ce->exitOnFail = EXIT_ON_FAIL;
+
+  if (ce->cachePath == NULL) { 
+    if (panificatie_cache_path[0] == '~') {
+      struct passwd *pw = getpwuid(getuid());
+      const char *hdir = pw->pw_dir;
+      ce->cachePath = malloc(strlen(hdir) + strlen(panificatie_cache_path) + 1);
+      ce->cachePath[0] = '\0';
+      strcat(ce->cachePath, hdir);
+      strcat(ce->cachePath, panificatie_cache_path + 1);
+    } else {
+      ce->cachePath = strdup(panificatie_cache_path);
+    }
+  }
 }
 
 void cenv_destroy(struct cenv *__restrict ce) {
   vecfree(ce->insPackages);
   conf_free_config(ce->pc);
+  free(ce->cachePath);
   shfree(ce->ignoredPkgs);
 }
 

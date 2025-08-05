@@ -15,7 +15,7 @@
 #define AUTO_AUR_INSTALL_CONFIRM 1
 #define EXIT_ON_FAIL 1
 
-#define PANIFICATIE_CACHE "/var/cache/panificatie"
+static const char *const panificatie_cache_path = "~/.cache/panificatie";
 static const char *const gnupg_keyservers[] = { "keys.openpgp.org", "hkps://keyserver.ubuntu.com" };
 
 //#define  "./etc/panificatie.conf"
