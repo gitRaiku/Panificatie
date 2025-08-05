@@ -42,6 +42,7 @@ struct cenv {
   uint8_t rebrun;
   uint8_t autoPacmanUpdate, autoPacmanInstall, autoPacmanRemove;
   uint8_t autoAurUpdate, autoAurInstall;
+  uint8_t exitOnFail;
   struct strv *insPackages;
   struct strEntry *ignoredPkgs;
   struct panix_config *pc;

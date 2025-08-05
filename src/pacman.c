@@ -434,10 +434,7 @@ void aur_initgpg() {
 }
 
 void aur_makeall() {
-  if (!checkexists(PANIFICATIE_CACHE)) {
-    fprintf(stderr, "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
-    return;
-  }
+  EZERO(checkexists(PANIFICATIE_CACHE), "Cannot enter %s for it does not exist!\n", PANIFICATIE_CACHE);
 
   aur_initgpg();
 
@@ -457,12 +454,13 @@ void aur_makeall() {
         struct vstrEntry *se = conf_read_eq(ifm("%s/aur_%s/.SRCINFO", PANIFICATIE_CACHE, pname));
 
         if (shgeti(se, "validpgpkeys") >= 0) { 
-          struct strv *ce = shget(se, "validpgpkeys"); 
-          vecforeach(ce, char*, str) { 
+          struct strv *cce = shget(se, "validpgpkeys"); 
+          vecforeach(cce, char*, str) { 
             runcmd("GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --list-keys %s &> /dev/null", getuid(), *str) { // Key not found; 
               fprintf(stdout, "GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --recv-keys %s\n", getuid(), *str);
-                runcmd("GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --recv-keys %s", getuid(), *str) { 
+              runcmd("GNUPGHOME="PANIFICATIE_CACHE"/.gnupg-%i gpg --recv-keys %s", getuid(), *str) { 
                 fprintf(stderr, "Could not import gpg key %s!\n", *str);
+                if (ce->exitOnFail) { exit(1); }
               }
             }
           } 
@@ -470,7 +468,7 @@ void aur_makeall() {
 
         conf_free_eq(se);
 
-        aur_make(pname);
+        if (aur_make(pname)) { if (ce->exitOnFail) { exit(1); } }
       }
     }
   }
@@ -499,7 +497,7 @@ void pacman_update_repos() {
 #define COL_NONE ""
 #define COL_STOP "\033[0m"
 
-void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
+uint8_t pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
   struct charv *chv;
   veci(charv, chv);
   charv_addstr(chv, cmd);
@@ -513,7 +511,7 @@ void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
     }
   }
   vecp(chv, '\0');
-  if (!doRun) { vecfree(chv); return; }
+  if (!doRun) { vecfree(chv); return 0; }
 
   fprintf(stdout, "Do you want to run:\n");
   fprintf(stdout, "%s%s%s\n", isatty(STDOUT_FILENO) ? col : COL_NONE, chv->v, COL_STOP);
@@ -521,11 +519,13 @@ void pacman_paccmd(char *cmd, const char *col, struct pacEntry *pkgs) {
   if (pacman_get_answer((pkgs == installablePackages) ? ce->autoPacmanInstall : ce->autoPacmanRemove)) {
     runcmd("yes | %s", chv->v) {
       fprintf(stderr, "Running %s failed with %i!\n", _fbuf, _fres);
-      exit(1);
+      vecfree(chv);
+      return 1;
     }
   }
 
   vecfree(chv);
+  return 0;
 }
 
 void pacman_read_config() {
@@ -556,20 +556,26 @@ void pacman_install() {
 
   if (shlenu(installablePackages) == 0 && shlenu(removablePackages) == 0 && shlenu(aurInstallablePackages) == 0 && !ce->update) { fprintf(stdout, "There's nothing to do.\n"); }
 
-  if (ce->update) {
-    if (ce->rebrun & 2) {
-      pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages);
-    } else {
-      pacman_paccmd("sudo pacman -Su", COL_GREEN, requiredPackages);
+  {
+    uint8_t r = 0;
+    if (ce->update) {
+      if (ce->rebrun & 2) {
+        r = pacman_paccmd("sudo pacman -Su", COL_GREEN, installablePackages);
+      } else {
+        r = pacman_paccmd("sudo pacman -Su", COL_GREEN, requiredPackages);
+      }
+    } else if (shlenu(installablePackages) > 0) {
+      r = pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages);
     }
-  } else if (shlenu(installablePackages) > 0) {
-    pacman_paccmd("sudo pacman -S", COL_GREEN, installablePackages);
-  }
-  
-  aur_makeall();
+    if (r && ce->exitOnFail) { exit(1); }
 
-  if (shlenu(removablePackages) > 0 && (ce->rebrun & 1)) {
-    pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages);
+    aur_makeall();
+
+    if (shlenu(removablePackages) > 0 && (ce->rebrun & 1)) {
+      if (pacman_paccmd("sudo pacman -Rns", COL_RED, removablePackages)) {
+        if (ce->exitOnFail) { exit(1); }
+      }
+    }
   }
 }
 

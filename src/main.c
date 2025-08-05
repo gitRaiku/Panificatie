@@ -73,6 +73,7 @@ void cenv_create(struct cenv *__restrict ce) {
   ce->autoPacmanRemove = AUTO_PACMAN_REMOVE_CONFIRM;
   ce->autoAurUpdate = AUTO_AUR_UPDATE_CONFIRM;
   ce->autoAurInstall = AUTO_AUR_INSTALL_CONFIRM;
+  ce->exitOnFail = EXIT_ON_FAIL;
 }
 
 void cenv_destroy(struct cenv *__restrict ce) {
