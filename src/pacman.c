@@ -249,7 +249,9 @@ void get_installable_removable_packages() {
   shforeach(installedPackages, i) {
     // if (alpm_pkg_get_reason(installedPackages[i].value) != ALPM_PKG_REASON_EXPLICIT) { continue ; } /// TODO: Make this a flag
     if (ce->update || (shgeti(requiredPackages, installedPackages[i].key) < 0)) {
-      vecforeach(ce->pc->aurPkgs, char*, apkg) { if (!strcmp(installedPackages[i].key, *apkg)) { goto rp_fin; } }
+      shforeach(aurRequiredPackages, j) { 
+        if (!strcmp(installedPackages[i].key, aurRequiredPackages[j].key)) { goto rp_fin; } 
+      }
       shput(removablePackages, installedPackages[i].key, installedPackages[i].value);
     }
     rp_fin:;
